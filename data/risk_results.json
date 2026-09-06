@@ -1,0 +1,6 @@
+[
+  {"asset_id": "SRV-01", "asset_name": "Customer DB Server", "likelihood": 0.35, "financial_impact": 2500000, "control_effectiveness": 0.4, "eal": 525000},
+  {"asset_id": "SRV-02", "asset_name": "Web Application", "likelihood": 0.5, "financial_impact": 1200000, "control_effectiveness": 0.3, "eal": 420000},
+  {"asset_id": "SRV-03", "asset_name": "Employee Laptop Fleet", "likelihood": 0.2, "financial_impact": 800000, "control_effectiveness": 0.5, "eal": 80000},
+  {"asset_id": "SRV-04", "asset_name": "Payment Gateway", "likelihood": 0.15, "financial_impact": 5000000, "control_effectiveness": 0.6, "eal": 300000}
+]

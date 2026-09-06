@@ -1,0 +1,44 @@
+[
+  {
+    "finding": "No Multi-Factor Authentication (MFA)",
+    "description": "Privileged or remote-access accounts can be accessed with a single factor (password only).",
+    "iso27001": ["A.5.17 (Authentication information)", "A.8.5 (Secure authentication)"],
+    "nist_csf": ["PR.AA-05 (Access permissions and authorizations enforced)"],
+    "severity": "High"
+  },
+  {
+    "finding": "Unpatched Critical/High CVE",
+    "description": "Asset is running software with a known, exploitable vulnerability that has not been patched.",
+    "iso27001": ["A.8.8 (Management of technical vulnerabilities)"],
+    "nist_csf": ["ID.RA-01 (Asset vulnerabilities identified)", "PR.PS-02 (Software maintained and patched)"],
+    "severity": "Critical"
+  },
+  {
+    "finding": "No Network Segmentation",
+    "description": "Flat network architecture allows lateral movement between critical and non-critical systems.",
+    "iso27001": ["A.8.22 (Segregation of networks)"],
+    "nist_csf": ["PR.IR-01 (Networks protected and monitored)"],
+    "severity": "High"
+  },
+  {
+    "finding": "No Encryption at Rest",
+    "description": "Sensitive data stored on disk or in databases is not encrypted.",
+    "iso27001": ["A.8.24 (Use of cryptography)"],
+    "nist_csf": ["PR.DS-01 (Data-at-rest protected)"],
+    "severity": "Medium"
+  },
+  {
+    "finding": "No Centralized Logging / Monitoring",
+    "description": "Security events are not collected or monitored centrally, delaying detection of incidents.",
+    "iso27001": ["A.8.15 (Logging)", "A.8.16 (Monitoring activities)"],
+    "nist_csf": ["DE.CM-01 (Networks and network services monitored)", "DE.AE-02 (Adverse events analyzed)"],
+    "severity": "Medium"
+  },
+  {
+    "finding": "No Incident Response Plan",
+    "description": "No documented or tested plan exists for responding to a security incident.",
+    "iso27001": ["A.5.24 (Information security incident management planning)", "A.5.26 (Response to incidents)"],
+    "nist_csf": ["RS.MA-01 (Incident response executed)"],
+    "severity": "Medium"
+  }
+]

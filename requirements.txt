@@ -1,0 +1,16 @@
+# Web Framework & Visualization
+streamlit>=1.30.0
+plotly>=5.18.0
+
+# Data Manipulation & Export
+pandas>=2.2.0
+openpyxl>=3.1.2
+
+# LLM Inference API (Groq Migration)
+groq>=1.7.0
+
+# HTTP Requests & API Fetching (NVD Integration)
+requests>=2.31.0
+
+# Environment Variable Management
+python-dotenv>=1.0.1

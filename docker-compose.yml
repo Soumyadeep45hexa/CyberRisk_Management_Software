@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data   # keeps generated JSON/db files visible on your host machine
+    env_file:
+      - .env               # loads GROQ_API_KEY etc. — create this file yourself, don't commit it

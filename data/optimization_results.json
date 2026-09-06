@@ -1,0 +1,66 @@
+{
+  "budget": 120000.0,
+  "selected_fixes": [
+    {
+      "asset_id": "A002",
+      "asset_name": "Internal HR Portal",
+      "fix": "Patch CVE-2024-1234",
+      "cost": 15000.0,
+      "risk_reduction": 180000.0
+    },
+    {
+      "asset_id": "A003",
+      "asset_name": "Employee Laptop Fleet",
+      "fix": "Improve access controls",
+      "cost": 20000.0,
+      "risk_reduction": 48000.00000000001
+    },
+    {
+      "asset_id": "A004",
+      "asset_name": "Payment Gateway",
+      "fix": "Improve access controls",
+      "cost": 20000.0,
+      "risk_reduction": 599999.9999999998
+    }
+  ],
+  "investment_curve": [
+    {
+      "investment": 0,
+      "risk_reduction": 0.0
+    },
+    {
+      "investment": 15000,
+      "risk_reduction": 180000.0
+    },
+    {
+      "investment": 30000,
+      "risk_reduction": 599999.9999999998
+    },
+    {
+      "investment": 45000,
+      "risk_reduction": 779999.9999999998
+    },
+    {
+      "investment": 60000,
+      "risk_reduction": 827999.9999999998
+    },
+    {
+      "investment": 75000,
+      "risk_reduction": 827999.9999999998
+    },
+    {
+      "investment": 90000,
+      "risk_reduction": 827999.9999999998
+    },
+    {
+      "investment": 105000,
+      "risk_reduction": 827999.9999999998
+    },
+    {
+      "investment": 120000,
+      "risk_reduction": 827999.9999999998
+    }
+  ],
+  "residual_risk": 472000.00000000023,
+  "total_risk_reduction": 827999.9999999998
+}

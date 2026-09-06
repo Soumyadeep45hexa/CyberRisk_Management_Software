@@ -1,0 +1,212 @@
+[
+  {
+    "asset_id": "AST-9586506389",
+    "asset_name": "Macbook Pro 13\" (9586506389)",
+    "criticality": 5,
+    "tech_keyword": "Apache",
+    "mfa_enabled": 1,
+    "patched": 1,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-4972064210",
+    "asset_name": "Macbook Pro 13\" (4972064210)",
+    "criticality": 6,
+    "tech_keyword": "PostgreSQL",
+    "mfa_enabled": 0,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-7110258661",
+    "asset_name": "Macbook Pro 13\" (7110258661)",
+    "criticality": 7,
+    "tech_keyword": "Nginx",
+    "mfa_enabled": 1,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-2504229091",
+    "asset_name": "Macbook Pro 13\" (2504229091)",
+    "criticality": 8,
+    "tech_keyword": "Linux",
+    "mfa_enabled": 0,
+    "patched": 1,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-1757581621",
+    "asset_name": "Macbook Pro 13\" (1757581621)",
+    "criticality": 9,
+    "tech_keyword": "MySQL",
+    "mfa_enabled": 1,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-539389984",
+    "asset_name": "Macbook Pro 13\" (539389984)",
+    "criticality": 5,
+    "tech_keyword": "Apache",
+    "mfa_enabled": 0,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-4914088331",
+    "asset_name": "Macbook Pro 13\" (4914088331)",
+    "criticality": 6,
+    "tech_keyword": "PostgreSQL",
+    "mfa_enabled": 1,
+    "patched": 1,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-6535492396",
+    "asset_name": "Macbook Pro 13\" (6535492396)",
+    "criticality": 7,
+    "tech_keyword": "Nginx",
+    "mfa_enabled": 0,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-597533997",
+    "asset_name": "Macbook Pro 13\" (597533997)",
+    "criticality": 8,
+    "tech_keyword": "Linux",
+    "mfa_enabled": 1,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-3963478462",
+    "asset_name": "Macbook Pro 13\" (3963478462)",
+    "criticality": 9,
+    "tech_keyword": "MySQL",
+    "mfa_enabled": 0,
+    "patched": 1,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-9597422402",
+    "asset_name": "Macbook Pro 13\" (9597422402)",
+    "criticality": 5,
+    "tech_keyword": "Apache",
+    "mfa_enabled": 1,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-3652808003",
+    "asset_name": "Macbook Pro 13\" (3652808003)",
+    "criticality": 6,
+    "tech_keyword": "PostgreSQL",
+    "mfa_enabled": 0,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-7379627722",
+    "asset_name": "Macbook Pro 13\" (7379627722)",
+    "criticality": 7,
+    "tech_keyword": "Nginx",
+    "mfa_enabled": 1,
+    "patched": 1,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-8839638392",
+    "asset_name": "Macbook Pro 13\" (8839638392)",
+    "criticality": 8,
+    "tech_keyword": "Linux",
+    "mfa_enabled": 0,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-3120072052",
+    "asset_name": "Macbook Pro 13\" (3120072052)",
+    "criticality": 9,
+    "tech_keyword": "MySQL",
+    "mfa_enabled": 1,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-4840402926",
+    "asset_name": "Macbook Pro 13\" (4840402926)",
+    "criticality": 5,
+    "tech_keyword": "Apache",
+    "mfa_enabled": 0,
+    "patched": 1,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-4565942879",
+    "asset_name": "Macbook Pro 13\" (4565942879)",
+    "criticality": 6,
+    "tech_keyword": "PostgreSQL",
+    "mfa_enabled": 1,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-7325963892",
+    "asset_name": "Macbook Pro 13\" (7325963892)",
+    "criticality": 7,
+    "tech_keyword": "Nginx",
+    "mfa_enabled": 0,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-7028190999",
+    "asset_name": "Macbook Pro 13\" (7028190999)",
+    "criticality": 8,
+    "tech_keyword": "Linux",
+    "mfa_enabled": 1,
+    "patched": 1,
+    "firewall": 1,
+    "network_segmented": 0
+  },
+  {
+    "asset_id": "AST-9213937324",
+    "asset_name": "Macbook Pro 13\" (9213937324)",
+    "criticality": 9,
+    "tech_keyword": "MySQL",
+    "mfa_enabled": 0,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 1
+  },
+  {
+    "asset_id": "AST-nan",
+    "asset_name": "nan (nan)",
+    "criticality": 5,
+    "tech_keyword": "Apache",
+    "mfa_enabled": 1,
+    "patched": 0,
+    "firewall": 1,
+    "network_segmented": 0
+  }
+]
