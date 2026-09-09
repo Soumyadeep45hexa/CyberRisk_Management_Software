@@ -8,6 +8,7 @@ Run with:  streamlit run dashboard.py
 """
 
 import io
+import json
 import os
 from pathlib import Path
 import time
@@ -33,6 +34,7 @@ st.set_page_config(
 )
 st.title("🛡️ Cyber Risk Quantification Dashboard")
 st.caption("FAIR-model Monte Carlo simulation • Real-time NVD Vulnerability Scoring • recomputes live as you edit data")
+st.sidebar.caption("🔧 Build: investment-optimizer-v3")
 
 SEVERITY_COLORS = {
     "Critical": "#b91c1c",
@@ -71,12 +73,22 @@ def pert_sample(min_val, mode, max_val, size, rng, lam=4.0):
     return min_val + rng.beta(alpha, beta, size=size) * rng_span
 
 
-def simulate_asset(row, n_sim, rng, max_events_cap=60):
+def simulate_asset(row, n_sim, rng, max_events_cap=60, upstream_breached=None):
     tef = pert_sample(row["tef_min"], row["tef_mode"], row["tef_max"], n_sim, rng)
     vuln = np.clip(rng.normal(row["vuln_prob"], row["vuln_prob"] * 0.15 + 0.02, n_sim), 0.0, 1.0)
     lef = tef * vuln
 
-    counts = rng.poisson(lef)
+    multiplier = row.get("exposure_multiplier", 1.0)
+    multiplier = float(multiplier) if pd.notna(multiplier) else 1.0
+
+    if upstream_breached is not None and multiplier != 1.0:
+        # Trials where the upstream asset was breached get a boosted
+        # effective frequency for THIS asset, in that same trial only.
+        effective_lef = np.where(upstream_breached, lef * multiplier, lef)
+    else:
+        effective_lef = lef
+
+    counts = rng.poisson(effective_lef)
     max_count = int(min(max(counts.max(), 1), max_events_cap))
     counts = np.minimum(counts, max_count)
 
@@ -87,26 +99,74 @@ def simulate_asset(row, n_sim, rng, max_events_cap=60):
     col_idx = np.arange(max_count)
     mask = col_idx[None, :] < counts[:, None]
     annual_loss = np.where(mask, magnitudes, 0.0).sum(axis=1)
-    return annual_loss, lef
+    breached = counts > 0
+    return annual_loss, effective_lef, breached
+
+
+def _resolve_dependency_order(register_df: pd.DataFrame) -> list:
+    """
+    Returns asset names ordered so each asset's upstream dependency (if any)
+    is simulated before it. Cycles are broken defensively — a dependency
+    edge that would create a loop is simply ignored, never raised.
+    """
+    names = register_df["asset_name"].tolist()
+    name_set = set(names)
+    depends_on = dict(zip(
+        register_df["asset_name"],
+        register_df.get("depends_on", pd.Series([None] * len(names))),
+    ))
+
+    visited, order, visiting = set(), [], set()
+
+    def visit(name):
+        if name in visited or name in visiting:
+            return
+        visiting.add(name)
+        upstream = depends_on.get(name)
+        if isinstance(upstream, str) and upstream in name_set and upstream != name:
+            visit(upstream)
+        visiting.discard(name)
+        visited.add(name)
+        order.append(name)
+
+    for n in names:
+        visit(n)
+    return order
 
 
 @st.cache_data(show_spinner=False)
 def run_portfolio_simulation(register_json: str, n_sim: int, seed: int):
     register = pd.read_json(io.StringIO(register_json), orient="records")
+    if "depends_on" not in register.columns:
+        register["depends_on"] = None
+    if "exposure_multiplier" not in register.columns:
+        register["exposure_multiplier"] = 1.0
+
     rng = np.random.default_rng(seed)
+    asset_order = _resolve_dependency_order(register)
+    register_indexed = register.set_index("asset_name")
 
     per_asset_losses = {}
     per_asset_lef = {}
-    for _, row in register.iterrows():
-        losses, lef = simulate_asset(row, n_sim, rng)
-        per_asset_losses[row["asset_name"]] = losses
-        per_asset_lef[row["asset_name"]] = float(np.mean(lef))
+    breach_flags = {}
 
-    loss_matrix = np.column_stack(list(per_asset_losses.values()))
+    for name in asset_order:
+        row = register_indexed.loc[name]
+        upstream_name = row.get("depends_on")
+        upstream_breached = breach_flags.get(upstream_name) if isinstance(upstream_name, str) else None
+
+        losses, effective_lef, breached = simulate_asset(row, n_sim, rng, upstream_breached=upstream_breached)
+        per_asset_losses[name] = losses
+        per_asset_lef[name] = float(np.mean(effective_lef))
+        breach_flags[name] = breached
+
+    # Preserve original register row order for consistent downstream merges
+    ordered_names = [n for n in register["asset_name"].tolist() if n in per_asset_losses]
+    loss_matrix = np.column_stack([per_asset_losses[n] for n in ordered_names])
     portfolio_loss = loss_matrix.sum(axis=1)
 
     summary_rows = []
-    for name in per_asset_losses:
+    for name in ordered_names:
         arr = per_asset_losses[name]
         summary_rows.append({
             "asset_name": name,
@@ -141,8 +201,11 @@ def sensitivity_analysis(register_df, n_sim, seed, shock=0.20):
     def portfolio_eal_with(modifier_col, factor):
         rng = np.random.default_rng(seed)
         total = np.zeros(n_sim_fast)
-        for _, row in register_df.iterrows():
-            r = row.copy()
+        asset_order = _resolve_dependency_order(register_df)
+        indexed = register_df.set_index("asset_name")
+        breach_flags = {}
+        for name in asset_order:
+            r = indexed.loc[name].copy()
             if modifier_col == "tef":
                 r["tef_min"] *= factor
                 r["tef_mode"] *= factor
@@ -153,7 +216,10 @@ def sensitivity_analysis(register_df, n_sim, seed, shock=0.20):
                 r["loss_min"] *= factor
                 r["loss_mode"] *= factor
                 r["loss_max"] *= factor
-            losses, _ = simulate_asset(r, n_sim_fast, rng)
+            upstream_name = r.get("depends_on")
+            upstream_breached = breach_flags.get(upstream_name) if isinstance(upstream_name, str) else None
+            losses, _, breached = simulate_asset(r, n_sim_fast, rng, upstream_breached=upstream_breached)
+            breach_flags[name] = breached
             total += losses
         return float(np.mean(total))
 
@@ -164,6 +230,136 @@ def sensitivity_analysis(register_df, n_sim, seed, shock=0.20):
         high = portfolio_eal_with(col, 1 + shock)
         drivers.append({"driver": label, "low": low, "base": base, "high": high, "swing": high - low})
     return pd.DataFrame(drivers).sort_values("swing", ascending=True)
+
+
+# ------------------------------------------------------------------------------
+# 3b. Investment optimizer — Δ-EAL per control + knapsack budget solver
+# ------------------------------------------------------------------------------
+CONTROL_TEMPLATE_COLUMNS = [
+    "control_id",
+    "asset_name",
+    "control_name",
+    "cost",
+    "vuln_prob_reduction_pct",
+    "tef_reduction_pct",
+    "loss_reduction_pct",
+]
+
+
+def _simulate_portfolio_eal(register_df, n_sim, seed):
+    """Dependency-aware portfolio EAL for an arbitrary (possibly modified)
+    register — the same chaining logic as run_portfolio_simulation, but
+    returning just the scalar mean EAL, fast enough to call once per
+    candidate control."""
+    rng = np.random.default_rng(seed)
+    asset_order = _resolve_dependency_order(register_df)
+    indexed = register_df.set_index("asset_name")
+    breach_flags = {}
+    total = np.zeros(n_sim)
+    for name in asset_order:
+        r = indexed.loc[name]
+        upstream_name = r.get("depends_on")
+        upstream_breached = breach_flags.get(upstream_name) if isinstance(upstream_name, str) else None
+        losses, _, breached = simulate_asset(r, n_sim, rng, upstream_breached=upstream_breached)
+        breach_flags[name] = breached
+        total += losses
+    return float(np.mean(total))
+
+
+def apply_control_to_register(register_df, control):
+    """Returns a copy of register_df with the named control's FAIR-field
+    reductions applied to its target asset only. Unknown asset -> no-op."""
+    modified = register_df.copy()
+    # FAIR numeric columns can load as int64 (e.g. whole-dollar loss values).
+    # Multiplying by a fractional discount then produces a non-integer float,
+    # which pandas refuses to write back into an int64 cell — force float64
+    # up front so every control's math always has somewhere valid to land.
+    fair_numeric_cols = [
+        "tef_min", "tef_mode", "tef_max",
+        "vuln_prob",
+        "loss_min", "loss_mode", "loss_max",
+    ]
+    for col in fair_numeric_cols:
+        if col in modified.columns:
+            modified[col] = modified[col].astype("float64")
+
+    mask = modified["asset_name"] == control["asset_name"]
+    if not mask.any():
+        return modified
+    idx = modified.index[mask][0]
+
+    vuln_cut = float(np.clip(control.get("vuln_prob_reduction_pct", 0) or 0, 0, 0.9))
+    tef_cut = float(np.clip(control.get("tef_reduction_pct", 0) or 0, 0, 0.9))
+    loss_cut = float(np.clip(control.get("loss_reduction_pct", 0) or 0, 0, 0.9))
+
+    if vuln_cut:
+        modified.at[idx, "vuln_prob"] = float(np.clip(modified.at[idx, "vuln_prob"] * (1 - vuln_cut), 0, 1))
+    if tef_cut:
+        for col in ["tef_min", "tef_mode", "tef_max"]:
+            modified.at[idx, col] = modified.at[idx, col] * (1 - tef_cut)
+    if loss_cut:
+        for col in ["loss_min", "loss_mode", "loss_max"]:
+            modified.at[idx, col] = modified.at[idx, col] * (1 - loss_cut)
+    return modified
+
+
+def compute_delta_eal(register_df, control, baseline_eal, n_sim, seed):
+    """Δ-EAL and $-ROI for one candidate control, holding everything else
+    fixed. Reuses the dependency-aware simulator so a control on an
+    upstream asset also credits the downstream exposure it prevents."""
+    n_sim_fast = min(int(n_sim), 5000)
+    modified = apply_control_to_register(register_df, control)
+    controlled_eal = _simulate_portfolio_eal(modified, n_sim_fast, seed)
+    delta_eal = max(0.0, baseline_eal - controlled_eal)
+    cost = float(control.get("cost", 0) or 0)
+    roi = (delta_eal / cost) if cost > 0 else 0.0
+    return delta_eal, roi
+
+
+def apply_controls_to_register(register_df, controls_list):
+    """Applies every control in controls_list to register_df, one after
+    another — reductions on the same asset compound multiplicatively."""
+    modified = register_df.copy()
+    for control in controls_list:
+        modified = apply_control_to_register(modified, control)
+    return modified
+
+
+def knapsack_optimize(candidates, budget, bucket=1000):
+    """0/1 knapsack (exact DP, cost discretized into $`bucket` units so the
+    table stays small even for large dollar budgets). Returns
+    (selected_within_budget, full_roi_ranked_list)."""
+    roi_ranked = sorted(
+        candidates,
+        key=lambda c: -(c["delta_eal"] / c["cost"] if c["cost"] > 0 else 0),
+    )
+    if not candidates or budget <= 0:
+        return [], roi_ranked
+
+    n = len(candidates)
+    budget_units = max(0, int(budget // bucket))
+    costs_units = [max(0, int(c["cost"] // bucket)) for c in candidates]
+    values = [c["delta_eal"] for c in candidates]
+
+    dp = [0.0] * (budget_units + 1)
+    keep = [[False] * (budget_units + 1) for _ in range(n)]
+    for i in range(n):
+        for b in range(budget_units, costs_units[i] - 1, -1):
+            candidate_value = dp[b - costs_units[i]] + values[i]
+            if candidate_value > dp[b]:
+                dp[b] = candidate_value
+                keep[i][b] = True
+
+    selected = []
+    b = budget_units
+    for i in range(n - 1, -1, -1):
+        if keep[i][b]:
+            selected.append(candidates[i])
+            b -= costs_units[i]
+    selected.reverse()
+    return selected, roi_ranked
+
+
 # ------------------------------------------------------------------------------
 # 4. NVD + EPSS API Helpers & Asset Register Ingestion
 # ------------------------------------------------------------------------------
@@ -480,6 +676,21 @@ def _coerce_register(df: pd.DataFrame):
         )
         df = df[~bad_rows]
 
+    # --- Dependency layer: optional columns, default-filled so any register
+    # (old saves, fresh uploads, Quick Add) works without them. ---
+    if "depends_on" not in df.columns:
+        df["depends_on"] = None
+    else:
+        df["depends_on"] = df["depends_on"].apply(
+            lambda v: v.strip() if isinstance(v, str) and v.strip() else None
+        )
+    if "exposure_multiplier" not in df.columns:
+        df["exposure_multiplier"] = 1.0
+    else:
+        df["exposure_multiplier"] = pd.to_numeric(
+            df["exposure_multiplier"], errors="coerce"
+        ).fillna(1.0).clip(1.0, 10.0)
+
     if not df.empty:
         df["vuln_prob"] = df["vuln_prob"].clip(0, 1)
         df["risk_level"] = (
@@ -494,7 +705,84 @@ def _coerce_register(df: pd.DataFrame):
             "risk_level",
         ] = "Medium"
 
+        # Invalidate any depends_on pointing at an asset that no longer
+        # exists (e.g. it was just deleted) or at itself.
+        valid_names = set(df["asset_name"])
+        df["depends_on"] = df.apply(
+            lambda r: r["depends_on"]
+            if (r["depends_on"] in valid_names and r["depends_on"] != r["asset_name"])
+            else None,
+            axis=1,
+        )
+
     return df.reset_index(drop=True), problems
+
+
+def _infer_dependencies_with_llm(new_asset_names, existing_asset_names):
+    """
+    Infers plausible architectural dependencies for newly added assets
+    against assets already in the register. Never forces a match — defaults
+    to no dependency when nothing plausible fits.
+    """
+    severity_multiplier = {
+        "none": 1.0, "minimal": 1.2, "moderate": 2.5, "severe": 5.0, "critical": 8.0,
+    }
+    fallback = [
+        {"asset_name": name, "depends_on": None, "severity": "none",
+         "exposure_multiplier": 1.0, "reason": ""}
+        for name in new_asset_names
+    ]
+
+    if groq_client is None or not existing_asset_names:
+        return fallback
+
+    prompt = f"""You are analyzing IT architecture for a cybersecurity risk register.
+
+New assets being added: {json.dumps(new_asset_names)}
+Assets already in the register: {json.dumps(existing_asset_names)}
+
+For EACH new asset, decide whether it plausibly sits "behind" or depends on
+one of the EXISTING assets architecturally (e.g. a database behind an API
+gateway, an internal app behind a VPN, a workstation behind a firewall).
+Only propose a dependency when it is a common, plausible architectural
+relationship based on typical naming/roles — do not force a match if none
+is plausible.
+
+Return ONLY a JSON array, one object per new asset, in the same order, using exactly:
+[{{"asset_name":"...", "depends_on": "<exact existing asset name, or null>", "severity": "<none|minimal|moderate|severe|critical>", "reason": "<one short plain-English sentence>"}}]
+"""
+    try:
+        response = groq_client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": "Return valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        answer = response.choices[0].message.content.strip()
+        answer = re.sub(r"^```(?:json)?\s*|\s*```$", "", answer, flags=re.IGNORECASE | re.DOTALL).strip()
+        inferred = json.loads(answer)
+        if not isinstance(inferred, list) or len(inferred) != len(new_asset_names):
+            return fallback
+
+        results = []
+        for name, item in zip(new_asset_names, inferred):
+            depends_on = item.get("depends_on")
+            severity = str(item.get("severity", "none")).strip().lower()
+            if depends_on not in existing_asset_names or depends_on == name:
+                depends_on, severity = None, "none"
+            if severity not in severity_multiplier:
+                severity = "none" if depends_on is None else "moderate"
+            results.append({
+                "asset_name": name,
+                "depends_on": depends_on,
+                "severity": severity,
+                "exposure_multiplier": severity_multiplier[severity],
+                "reason": str(item.get("reason", "")).strip(),
+            })
+        return results
+    except Exception:
+        return fallback
 
 
 def _extract_ai_csv(answer: str):
@@ -527,6 +815,170 @@ def _extract_ai_csv(answer: str):
     return None
 
 
+def _infer_asset_context_with_llm(asset_df):
+    """Infer threat context from asset names without allowing fabricated CVEs."""
+    if groq_client is None:
+        raise ValueError(f"LLM inference unavailable: {groq_error}")
+
+    asset_names = [str(name).strip() for name in asset_df["asset_name"]]
+    prompt = f"""You are a cybersecurity risk analyst. Infer context for these assets:
+{json.dumps(asset_names)}
+
+Return ONLY a JSON array with one object per input asset, in the same order, using exactly:
+[{{"asset_name":"...","threat_event":"...","vulnerability":"..."}}]
+
+Rules:
+- threat_event must be a realistic attack or loss event.
+- vulnerability must be a generic vulnerability category or description, such as "Weak access controls" or "Unpatched container image".
+- Never output a CVE number, CVE identifier, version-specific claim, or invented vulnerability.
+- Keep each value concise and grounded in the asset type.
+"""
+    response = groq_client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[
+            {"role": "system", "content": "Return valid JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    answer = response.choices[0].message.content.strip()
+    answer = re.sub(r"^```(?:json)?\s*|\s*```$", "", answer, flags=re.IGNORECASE | re.DOTALL).strip()
+    inferred = json.loads(answer)
+    if not isinstance(inferred, list) or len(inferred) != len(asset_names):
+        raise ValueError("LLM returned an invalid number of asset inferences.")
+
+    inferred_df = pd.DataFrame(inferred)
+    required = {"asset_name", "threat_event", "vulnerability"}
+    if not required.issubset(inferred_df.columns):
+        raise ValueError("LLM response is missing threat_event or vulnerability fields.")
+    if inferred_df["vulnerability"].astype(str).str.contains(r"\bCVE-\d{4}-\d{4,}\b", case=False, regex=True).any():
+        raise ValueError("LLM returned a CVE identifier; no fabricated CVEs are accepted.")
+    inferred_df["asset_name"] = asset_names
+    return inferred_df[["asset_name", "threat_event", "vulnerability"]]
+
+
+REGISTER_STORE_PATH = Path(__file__).resolve().parent / "data" / "dashboard_asset_register.json"
+
+
+def _load_saved_register():
+    if not REGISTER_STORE_PATH.exists():
+        return _sample_register()
+    try:
+        saved_df = pd.read_json(REGISTER_STORE_PATH, orient="records")
+        register_df, _ = _coerce_register(saved_df)
+        return register_df if not register_df.empty else _sample_register()
+    except (OSError, ValueError, TypeError):
+        return _sample_register()
+
+
+def _save_register(register_df):
+    REGISTER_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    register_df.to_json(REGISTER_STORE_PATH, orient="records", indent=2)
+
+
+CONTROL_LIBRARY_PATH = Path(__file__).resolve().parent / "data" / "control_library.json"
+
+
+def _coerce_controls(df: pd.DataFrame, valid_asset_names):
+    """Ensures every control row targets a real asset and has sane numeric
+    fields; drops anything that doesn't. Mirrors _coerce_register's style."""
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return pd.DataFrame(columns=CONTROL_TEMPLATE_COLUMNS)
+    df = df.copy()
+    for col in CONTROL_TEMPLATE_COLUMNS:
+        if col not in df.columns:
+            df[col] = 0 if col not in ("control_id", "asset_name", "control_name") else ""
+    df = df[df["asset_name"].isin(valid_asset_names)]
+    df["cost"] = pd.to_numeric(df["cost"], errors="coerce").fillna(0).clip(lower=0)
+    for col in ["vuln_prob_reduction_pct", "tef_reduction_pct", "loss_reduction_pct"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).clip(0, 0.9)
+    df["control_name"] = df["control_name"].fillna("Unnamed Control").astype(str)
+    df["control_id"] = [
+        cid if str(cid).strip() else f"ctrl_{i}"
+        for i, cid in enumerate(df.get("control_id", pd.Series(dtype=str)))
+    ]
+    return df[CONTROL_TEMPLATE_COLUMNS].reset_index(drop=True)
+
+
+def _load_control_library():
+    if not CONTROL_LIBRARY_PATH.exists():
+        return pd.DataFrame(columns=CONTROL_TEMPLATE_COLUMNS)
+    try:
+        return pd.read_json(CONTROL_LIBRARY_PATH, orient="records")
+    except (OSError, ValueError, TypeError):
+        return pd.DataFrame(columns=CONTROL_TEMPLATE_COLUMNS)
+
+
+def _save_control_library(controls_df):
+    CONTROL_LIBRARY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    controls_df.to_json(CONTROL_LIBRARY_PATH, orient="records", indent=2)
+
+
+def _infer_controls_with_llm(asset_rows):
+    """Proposes 2-3 plausible mitigating controls per asset via Groq. Each
+    control names which FAIR field(s) it discounts and by how much — never
+    fabricates a specific product, price list, or compliance claim."""
+    fallback = pd.DataFrame(columns=CONTROL_TEMPLATE_COLUMNS)
+    if groq_client is None or not asset_rows:
+        return fallback
+
+    prompt = f"""You are a cybersecurity control-planning analyst.
+
+For EACH asset below, propose 2-3 plausible, distinct mitigating controls
+(e.g. MFA enforcement, network segmentation, offsite backups, WAF rules,
+employee security training, patch management automation).
+
+Assets (asset_name, threat_event, vulnerability, current tef_mode,
+current vuln_prob, current loss_mode):
+{json.dumps(asset_rows)}
+
+For each control estimate:
+- cost: a realistic one-time/annual USD implementation cost (number only)
+- vuln_prob_reduction_pct: fraction (0-0.9) this control cuts the asset's vulnerability probability, or 0 if not applicable
+- tef_reduction_pct: fraction (0-0.9) this control cuts threat event frequency, or 0 if not applicable
+- loss_reduction_pct: fraction (0-0.9) this control cuts loss magnitude if a breach still occurs, or 0 if not applicable
+
+A control should usually affect only ONE of the three fields meaningfully — leave the others at 0.
+
+Return ONLY a JSON array using exactly:
+[{{"asset_name":"...", "control_name":"...", "cost": 0, "vuln_prob_reduction_pct": 0, "tef_reduction_pct": 0, "loss_reduction_pct": 0}}]
+"""
+    try:
+        response = groq_client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": "Return valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        answer = response.choices[0].message.content.strip()
+        answer = re.sub(r"^```(?:json)?\s*|\s*```$", "", answer, flags=re.IGNORECASE | re.DOTALL).strip()
+        inferred = json.loads(answer)
+        if not isinstance(inferred, list):
+            return fallback
+        inferred_df = pd.DataFrame(inferred)
+        required = {"asset_name", "control_name"}
+        if not required.issubset(inferred_df.columns):
+            return fallback
+        inferred_df["control_id"] = [f"ctrl_llm_{i}" for i in range(len(inferred_df))]
+        return inferred_df
+    except Exception:
+        return fallback
+
+
+@st.dialog("Delete asset")
+def confirm_delete_asset(asset_name):
+    st.warning(f"Delete **{asset_name}** from the asset register?")
+    st.caption("This removes the asset from the saved register and the next Monte Carlo run.")
+    if st.button("Delete asset", type="primary", key=f"confirm_delete_{asset_name}"):
+        remaining_df = st.session_state.processed_df[
+            st.session_state.processed_df["asset_name"] != asset_name
+        ].reset_index(drop=True)
+        st.session_state.processed_df = remaining_df
+        st.session_state.register_source = "saved"
+        _save_register(remaining_df)
+        st.rerun()
+
+
 # ------------------------------------------------------------------------------
 # Streamlit UI Controls
 # ------------------------------------------------------------------------------
@@ -540,6 +992,86 @@ uploaded = st.sidebar.file_uploader(
         " columns."
     ),
 )
+
+if "processed_df" not in st.session_state:
+    st.session_state.processed_df = _load_saved_register()
+if "last_uploaded_id" not in st.session_state:
+    st.session_state.last_uploaded_id = None
+if "register_source" not in st.session_state:
+    st.session_state.register_source = "saved"
+
+with st.sidebar.expander("➕ Quick Add", expanded=True):
+    st.caption("Upload a CSV/XLSX/XLS containing an asset_name column. The LLM fills in the threat event and generic vulnerability description.")
+    quick_upload = st.file_uploader(
+        "Quick Add asset file",
+        type=["csv", "xlsx", "xls"],
+        key="quick_add_upload",
+        help="Required: asset_name. Optional: asset_id, tech_keyword, criticality, mfa_enabled, patched, firewall, network_segmented.",
+    )
+    quick_add_submitted = st.button("Add file assets", type="primary", disabled=quick_upload is None)
+
+    if quick_add_submitted and quick_upload is not None:
+        try:
+            if quick_upload.name.lower().endswith(".csv"):
+                try:
+                    quick_raw_df = pd.read_csv(quick_upload, sep=None, engine="python")
+                except Exception:
+                    quick_upload.seek(0)
+                    quick_raw_df = pd.read_csv(quick_upload)
+            else:
+                quick_raw_df = pd.read_excel(quick_upload)
+
+            quick_raw_df.columns = [
+                str(column).strip().lower().replace(" ", "_")
+                for column in quick_raw_df.columns
+            ]
+            quick_raw_df = quick_raw_df.rename(columns={
+                "asset": "asset_name",
+                "asset_title": "asset_name",
+            })
+            if "asset_name" not in quick_raw_df.columns:
+                raise ValueError("Quick Add files must include an asset_name column.")
+            quick_raw_df = quick_raw_df[quick_raw_df["asset_name"].notna()].copy()
+            if quick_raw_df.empty:
+                raise ValueError("Quick Add file contains no asset names.")
+
+            with st.spinner("Inferring threat context and checking vulnerability data..."):
+                inferred_context = _infer_asset_context_with_llm(quick_raw_df)
+                quick_enriched_df = enrich_with_nvd_dynamic_loss(inferred_context)
+                quick_register_df, quick_problems = _coerce_register(quick_enriched_df)
+            if quick_problems or quick_register_df.empty:
+                st.error(" / ".join(quick_problems) or "Could not add these assets.")
+            else:
+                existing_names = st.session_state.processed_df["asset_name"].tolist()
+                new_names = quick_register_df["asset_name"].tolist()
+                with st.spinner("Checking for architectural dependencies..."):
+                    dependency_results = _infer_dependencies_with_llm(new_names, existing_names)
+                dep_by_name = {d["asset_name"]: d for d in dependency_results}
+                quick_register_df["depends_on"] = quick_register_df["asset_name"].map(
+                    lambda n: dep_by_name.get(n, {}).get("depends_on")
+                )
+                quick_register_df["exposure_multiplier"] = quick_register_df["asset_name"].map(
+                    lambda n: dep_by_name.get(n, {}).get("exposure_multiplier", 1.0)
+                )
+
+                updated_register = pd.concat(
+                    [st.session_state.processed_df, quick_register_df],
+                    ignore_index=True,
+                )
+                st.session_state.processed_df = updated_register
+                st.session_state.register_source = "saved"
+                _save_register(updated_register)
+
+                st.success(f"Added {len(quick_register_df)} asset(s) to the register.")
+                for d in dependency_results:
+                    if d["depends_on"]:
+                        st.caption(
+                            f"Detected dependency: **{d['asset_name']}** → **{d['depends_on']}** "
+                            f"({d['severity']}). {d['reason']}"
+                        )
+                st.rerun()
+        except Exception as exc:
+            st.error(f"Quick Add failed: {exc}")
 
 template_df = pd.DataFrame([{
     "asset_name": "Active Directory Primary Domain Controller",
@@ -556,12 +1088,7 @@ st.sidebar.download_button(
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 )
 
-using_sample = False
-
-if "processed_df" not in st.session_state:
-    st.session_state.processed_df = None
-if "last_uploaded_id" not in st.session_state:
-    st.session_state.last_uploaded_id = None
+using_sample = st.session_state.register_source == "sample"
 
 if uploaded is not None:
     current_file_id = f"{uploaded.name}_{uploaded.size}"
@@ -625,6 +1152,8 @@ if uploaded is not None:
 
             st.session_state.processed_df = register_df
             st.session_state.last_uploaded_id = current_file_id
+            st.session_state.register_source = "uploaded"
+            _save_register(register_df)
 
         except Exception as e:
             st.sidebar.error(f"Could not read file: {e}")
@@ -634,9 +1163,7 @@ if uploaded is not None:
         register_df = st.session_state.processed_df
 else:
     st.session_state.last_uploaded_id = None
-    st.session_state.processed_df = None
-    register_df = _sample_register()
-    using_sample = True
+    register_df = st.session_state.processed_df.copy()
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎲 Monte Carlo Settings")
@@ -671,6 +1198,14 @@ edited_df = st.data_editor(
         "risk_level": st.column_config.SelectboxColumn(
             "Risk Level", options=["Critical", "High", "Medium", "Low"]
         ),
+        "depends_on": st.column_config.TextColumn(
+            "Depends On (asset name)",
+            help="Leave blank if this asset has no upstream dependency. Auto-detected for Quick Add assets — edit here to correct it.",
+        ),
+        "exposure_multiplier": st.column_config.NumberColumn(
+            "Exposure Multiplier", format="%.1fx", min_value=1.0, max_value=10.0, step=0.5,
+            help="How much riskier this asset becomes, in trials where its upstream dependency is breached.",
+        ),
     },
 )
 
@@ -682,6 +1217,23 @@ if valid_df.empty:
     st.error("No valid assets to simulate. Fix the register above.")
     st.stop()
 
+st.session_state.processed_df = valid_df.copy()
+_save_register(valid_df)
+st.caption("Click an asset below to reveal its delete action.")
+asset_selection = st.dataframe(
+    valid_df[["asset_name"]].rename(columns={"asset_name": "Asset"}),
+    hide_index=True,
+    on_select="rerun",
+    selection_mode="single-row",
+    key="asset_delete_picker",
+)
+selected_rows = asset_selection.selection.rows
+selected_row = selected_rows[0] if selected_rows else None
+if isinstance(selected_row, int) and 0 <= selected_row < len(valid_df):
+    delete_asset = valid_df.iloc[selected_row]["asset_name"]
+    if st.button(f"🗑️ Delete {delete_asset}", key="delete_selected_asset"):
+        confirm_delete_asset(delete_asset)
+
 # ------------------------------------------------------------------------------
 # 6. Run Monte Carlo Simulation
 # ------------------------------------------------------------------------------
@@ -691,6 +1243,75 @@ with st.spinner("Running Monte Carlo simulation..."):
     summary_df, portfolio_summary, portfolio_loss = run_portfolio_simulation(register_json, int(n_sim), int(seed))
 
 full_df = valid_df.merge(summary_df, on="asset_name", how="left")
+
+# --- Persistent portfolio history logging (disk-based, NOT session_state) ---
+# This is what makes the trend chart below survive across CSV uploads,
+# asset removals, and even closing/reopening the browser tab. Streamlit's
+# session_state resets on every new session; a SQLite file on disk does not.
+import sqlite3
+
+PORTFOLIO_HISTORY_DB = Path(__file__).resolve().parent / "portfolio_trend.db"
+
+
+def _init_portfolio_history_db():
+    conn = sqlite3.connect(PORTFOLIO_HISTORY_DB)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS portfolio_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            portfolio_eal REAL,
+            portfolio_var_95 REAL,
+            n_assets INTEGER,
+            note TEXT
+        )
+    """)
+    conn.commit()
+    return conn
+
+
+def _log_portfolio_snapshot(eal, var_95, n_assets, note=""):
+    """Appends one row — never overwrites, never deletes. This is why
+    removing an asset and re-running shows a NEW lower point on the trend
+    instead of replacing/erasing the earlier, higher point."""
+    conn = _init_portfolio_history_db()
+    conn.execute(
+        "INSERT INTO portfolio_history (timestamp, portfolio_eal, portfolio_var_95, n_assets, note) VALUES (?, ?, ?, ?, ?)",
+        (pd.Timestamp.now().isoformat(), float(eal), float(var_95), int(n_assets), note),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _load_portfolio_history():
+    conn = _init_portfolio_history_db()
+    df = pd.read_sql("SELECT * FROM portfolio_history ORDER BY timestamp", conn)
+    conn.close()
+    return df
+
+
+def _should_log_snapshot(eal, n_assets, history_df, eal_threshold_pct=0.5):
+    """Avoids spamming a new row on every trivial Streamlit rerun (e.g. a
+    UI redraw with no real data change). Logs a new point only if the
+    asset count changed (an asset was added/removed) OR the EAL moved
+    more than the threshold — both are genuine, meaningful events."""
+    if history_df.empty:
+        return True
+    last_row = history_df.iloc[-1]
+    if int(last_row["n_assets"]) != int(n_assets):
+        return True  # asset count changed -> always log, this is the key signal
+    last_eal = last_row["portfolio_eal"]
+    if last_eal == 0:
+        return eal != 0
+    pct_change = abs(eal - last_eal) / last_eal * 100
+    return pct_change > eal_threshold_pct
+
+
+_history_so_far = _load_portfolio_history()
+if _should_log_snapshot(portfolio_summary["eal"], len(valid_df), _history_so_far):
+    _log_portfolio_snapshot(
+        portfolio_summary["eal"], portfolio_summary["var_95"], len(valid_df),
+        note=f"{len(valid_df)} assets in register",
+    )
 
 # ------------------------------------------------------------------------------
 # 7. Sidebar Risk-Level Filter
@@ -717,7 +1338,62 @@ k5.metric("Top Risk Driver", top_asset)
 st.divider()
 
 # ------------------------------------------------------------------------------
+# 8b. Portfolio Risk Trend Over Time — persists across uploads, never resets
+# ------------------------------------------------------------------------------
+st.subheader("📉 Portfolio Risk Trend Over Time")
+st.caption(
+    "Every simulation run is logged here permanently — uploading a new CSV "
+    "(e.g. after removing an asset) adds a NEW point rather than clearing "
+    "this history, so you can see EAL trend down (or up) over successive changes."
+)
+_trend_history = _load_portfolio_history()
+if len(_trend_history) > 1:
+    fig_portfolio_trend = go.Figure()
+    fig_portfolio_trend.add_trace(go.Scatter(
+        x=_trend_history["timestamp"], y=_trend_history["portfolio_eal"],
+        mode="lines+markers", name="Portfolio EAL",
+        line=dict(color="#22c55e"),
+        hovertemplate="%{x}<br>EAL: $%{y:,.0f}<extra></extra>",
+    ))
+    fig_portfolio_trend.add_trace(go.Scatter(
+        x=_trend_history["timestamp"], y=_trend_history["portfolio_var_95"],
+        mode="lines+markers", name="Portfolio 95% VaR",
+        line=dict(color="#ef4444"),
+        hovertemplate="%{x}<br>VaR 95: $%{y:,.0f}<extra></extra>",
+    ))
+    fig_portfolio_trend.update_layout(
+        xaxis_title="Simulation Run", yaxis_title="USD",
+        height=320, margin=dict(l=10, r=10, t=10, b=10),
+        legend=dict(orientation="h", y=1.15),
+    )
+    st.plotly_chart(fig_portfolio_trend, width="stretch")
+
+    # Small table showing asset-count changes alongside EAL, so a removal
+    # event is visually obvious (n_assets drops, EAL drops in the same row)
+    with st.expander("View raw history log"):
+        st.dataframe(
+            _trend_history[["timestamp", "n_assets", "portfolio_eal", "portfolio_var_95", "note"]].rename(columns={
+                "timestamp": "When", "n_assets": "# Assets",
+                "portfolio_eal": "Portfolio EAL ($)", "portfolio_var_95": "95% VaR ($)", "note": "Note",
+            }),
+            width="stretch", hide_index=True,
+            column_config={
+                "Portfolio EAL ($)": st.column_config.NumberColumn(format="$%,.0f"),
+                "95% VaR ($)": st.column_config.NumberColumn(format="$%,.0f"),
+            },
+        )
+else:
+    st.caption(
+        "This is your first logged run — the trend line will appear once you "
+        "make a second meaningful change (e.g. remove an asset and re-upload) "
+        "and re-run the simulation."
+    )
+
+st.divider()
+
+# ------------------------------------------------------------------------------
 # 9. Charts
+
 # ------------------------------------------------------------------------------
 c1, c2 = st.columns([1.3, 1])
 
@@ -838,6 +1514,194 @@ st.dataframe(
 st.divider()
 
 # ------------------------------------------------------------------------------
+# 10b. Investment Optimizer — Δ-EAL per control + knapsack budget solver
+# ------------------------------------------------------------------------------
+st.header("💰 Investment Optimizer")
+st.caption(
+    "Estimate the Expected Annual Loss reduction (Δ-EAL) each candidate control would "
+    "buy, then pick the best set of controls under a fixed budget."
+)
+
+if "controls_df" not in st.session_state:
+    st.session_state.controls_df = _load_control_library()
+
+asset_name_options = valid_df["asset_name"].tolist()
+
+if st.button("🤖 Suggest controls for all assets", disabled=groq_client is None):
+    with st.spinner("Proposing candidate controls..."):
+        asset_rows_for_llm = valid_df[
+            ["asset_name", "threat_event", "vulnerability", "tef_mode", "vuln_prob", "loss_mode"]
+        ].to_dict(orient="records")
+        suggested_df = _infer_controls_with_llm(asset_rows_for_llm)
+    if suggested_df.empty:
+        st.warning("Could not generate control suggestions.")
+    else:
+        combined = pd.concat([st.session_state.controls_df, suggested_df], ignore_index=True)
+        st.session_state.controls_df = _coerce_controls(combined, asset_name_options)
+        _save_control_library(st.session_state.controls_df)
+        st.rerun()
+if groq_client is None:
+    st.caption(f"AI control suggestions unavailable — {groq_error}")
+
+controls_edited_df = st.data_editor(
+    st.session_state.controls_df,
+    width="stretch",
+    num_rows="dynamic",
+    hide_index=True,
+    key="controls_editor",
+    column_config={
+        "control_id": None,
+        "asset_name": st.column_config.SelectboxColumn("Asset", options=asset_name_options),
+        "control_name": st.column_config.TextColumn("Control"),
+        "cost": st.column_config.NumberColumn("Cost ($)", format="$%,.0f", min_value=0),
+        "vuln_prob_reduction_pct": st.column_config.NumberColumn(
+            "Vuln reduction", format="%.0f%%", min_value=0.0, max_value=0.9, step=0.05
+        ),
+        "tef_reduction_pct": st.column_config.NumberColumn(
+            "TEF reduction", format="%.0f%%", min_value=0.0, max_value=0.9, step=0.05
+        ),
+        "loss_reduction_pct": st.column_config.NumberColumn(
+            "Loss reduction", format="%.0f%%", min_value=0.0, max_value=0.9, step=0.05
+        ),
+    },
+)
+controls_df_valid = _coerce_controls(controls_edited_df, asset_name_options)
+if not controls_df_valid.equals(st.session_state.controls_df):
+    st.session_state.controls_df = controls_df_valid
+    _save_control_library(controls_df_valid)
+
+budget = st.number_input(
+    "Total security budget ($)", min_value=0, value=250000, step=10000, format="%d"
+)
+
+if controls_df_valid.empty:
+    st.info("Add or generate at least one candidate control above to run the optimizer.")
+else:
+    if st.button("Run investment optimization", type="primary"):
+        with st.spinner("Simulating each candidate control..."):
+            opt_seed = int(seed)
+            n_sim_fast = min(int(n_sim), 5000)
+            baseline_eal_fast = _simulate_portfolio_eal(valid_df, n_sim_fast, opt_seed)
+
+            candidates = []
+            for _, ctrl_row in controls_df_valid.iterrows():
+                ctrl = ctrl_row.to_dict()
+                delta_eal, roi = compute_delta_eal(valid_df, ctrl, baseline_eal_fast, n_sim, opt_seed)
+                candidates.append({
+                    **ctrl,
+                    "label": f"{ctrl['control_name']} ({ctrl['asset_name']})",
+                    "delta_eal": delta_eal,
+                    "roi": roi,
+                })
+
+            selected, roi_ranked = knapsack_optimize(candidates, float(budget))
+
+            # Full-resolution optimized EAL: apply every recommended control
+            # together (compounding on shared assets) and re-simulate at the
+            # SAME n_sim/seed as the main run, so it's directly comparable to
+            # portfolio_summary["eal"] rather than the fast per-control estimate.
+            if selected:
+                optimized_register = apply_controls_to_register(valid_df, selected)
+                optimized_eal_full = _simulate_portfolio_eal(optimized_register, int(n_sim), opt_seed)
+            else:
+                optimized_eal_full = portfolio_summary["eal"]
+
+        st.session_state.optimizer_results = {
+            "selected": selected,
+            "roi_ranked": roi_ranked,
+            "baseline_eal_fast": baseline_eal_fast,
+            "optimized_eal_full": optimized_eal_full,
+        }
+
+    if "optimizer_results" in st.session_state:
+        opt_results = st.session_state.optimizer_results
+        selected = opt_results["selected"]
+        roi_ranked = opt_results["roi_ranked"]
+
+        total_cost = sum(c["cost"] for c in selected)
+        total_delta = sum(c["delta_eal"] for c in selected)
+
+        oc1, oc2, oc3 = st.columns(3)
+        oc1.metric("Recommended spend", f"${total_cost:,.0f}", f"of ${budget:,.0f} budget")
+        oc2.metric("Projected EAL reduction", f"${total_delta:,.0f}")
+        oc3.metric("Controls selected", f"{len(selected)} / {len(roi_ranked)}")
+
+        st.markdown("#### Portfolio EAL — before vs after recommended controls")
+        optimized_eal_full = opt_results["optimized_eal_full"]
+        pct_reduction = (
+            100 * (portfolio_summary["eal"] - optimized_eal_full) / portfolio_summary["eal"]
+            if portfolio_summary["eal"] > 0 else 0
+        )
+        fig_compare = go.Figure()
+        fig_compare.add_trace(go.Bar(
+            x=["Current (unmitigated)", "Optimized (with recommended controls)"],
+            y=[portfolio_summary["eal"], optimized_eal_full],
+            marker_color=["#ef4444", "#22c55e"],
+            text=[f"${portfolio_summary['eal']:,.0f}", f"${optimized_eal_full:,.0f}"],
+            textposition="outside",
+            hovertemplate="%{x}<br>Portfolio EAL: $%{y:,.0f}<extra></extra>",
+        ))
+        fig_compare.update_layout(
+            yaxis_title="Portfolio EAL (USD)",
+            height=340, margin=dict(l=10, r=10, t=10, b=10), showlegend=False,
+        )
+        st.plotly_chart(fig_compare, width="stretch")
+        st.caption(
+            f"Recommended controls cut portfolio EAL by ${portfolio_summary['eal'] - optimized_eal_full:,.0f} "
+            f"({pct_reduction:.1f}%) for a spend of ${total_cost:,.0f}."
+        )
+
+        fig_controls = go.Figure()
+        fig_controls.add_trace(go.Bar(
+            x=[c["delta_eal"] for c in roi_ranked],
+            y=[c["label"] for c in roi_ranked],
+            orientation="h",
+            marker_color=["#22c55e" if c in selected else "#94a3b8" for c in roi_ranked],
+            text=[f"${c['delta_eal']:,.0f}" for c in roi_ranked],
+            textposition="outside",
+            hovertemplate="<b>%{y}</b><br>Δ-EAL: $%{x:,.0f}<extra></extra>",
+        ))
+        fig_controls.update_layout(
+            xaxis_title="Δ-EAL (USD, green = selected within budget)",
+            height=max(280, 40 * len(roi_ranked)),
+            margin=dict(l=10, r=60, t=10, b=40),
+        )
+        st.plotly_chart(fig_controls, width="stretch")
+
+        st.markdown("#### Recommended within budget")
+        if selected:
+            st.dataframe(
+                pd.DataFrame(selected)[["label", "asset_name", "cost", "delta_eal", "roi"]].rename(columns={
+                    "label": "Control", "asset_name": "Asset", "cost": "Cost ($)",
+                    "delta_eal": "Δ-EAL ($)", "roi": "ROI ($ saved / $ spent)",
+                }),
+                width="stretch", hide_index=True,
+                column_config={
+                    "Cost ($)": st.column_config.NumberColumn(format="$%,.0f"),
+                    "Δ-EAL ($)": st.column_config.NumberColumn(format="$%,.0f"),
+                    "ROI ($ saved / $ spent)": st.column_config.NumberColumn(format="%.2f"),
+                },
+            )
+        else:
+            st.caption("No controls fit within the current budget.")
+
+        with st.expander("Full ROI ranking (all candidates)"):
+            st.dataframe(
+                pd.DataFrame(roi_ranked)[["label", "asset_name", "cost", "delta_eal", "roi"]].rename(columns={
+                    "label": "Control", "asset_name": "Asset", "cost": "Cost ($)",
+                    "delta_eal": "Δ-EAL ($)", "roi": "ROI ($ saved / $ spent)",
+                }),
+                width="stretch", hide_index=True,
+                column_config={
+                    "Cost ($)": st.column_config.NumberColumn(format="$%,.0f"),
+                    "Δ-EAL ($)": st.column_config.NumberColumn(format="$%,.0f"),
+                    "ROI ($ saved / $ spent)": st.column_config.NumberColumn(format="%.2f"),
+                },
+            )
+
+st.divider()
+
+# ------------------------------------------------------------------------------
 # 11. Cyber Risk Analyst Assistant
 # ------------------------------------------------------------------------------
 st.subheader("🤖 Cyber Risk Analyst Assistant")
@@ -868,19 +1732,34 @@ else:
             "n_simulations": int(n_sim),
         }
 
+        # Full current register with exact FAIR parameters — needed so a
+        # removal request can reproduce the REMAINING rows unchanged, rather
+        # than the AI inventing new/slightly different numbers from memory.
+        current_register_records = valid_df.to_dict(orient="records")
+
         # Flexible System Prompt
         prompt = f"""You are a CISSP & FAIR Cyber Risk Quantitative Analyst embedded in a Monte Carlo risk dashboard.
 
 Your goal is to assist the user based on their request:
 
-1. IF THE USER ASKS FOR A NEW CSV, ASSET LIST, OR THREAT SCENARIO GENERATION:
-   - Generate realistic FAIR-model parameters for each asset mentioned.
+1. IF THE USER ASKS FOR A NEW CSV, ASSET LIST, OR THREAT SCENARIO GENERATION (assets not currently in the register):
+   - Generate realistic FAIR-model parameters for each new asset mentioned.
    - Output MUST contain valid CSV data inside a single markdown code block (`csv ... `).
    - Use these exact header columns:
      asset_name,threat_event,vulnerability,risk_level,tef_min,tef_mode,tef_max,vuln_prob,loss_min,loss_mode,loss_max
 
-2. IF THE USER ASKS ABOUT THE CURRENT DASHBOARD RESULTS OR METRICS:
+2. IF THE USER ASKS TO REMOVE, DELETE, OR RETIRE ONE OR MORE EXISTING ASSETS (e.g. "remove Customer Portal", "we decommissioned the legacy file server"):
+   - Take the CURRENT REGISTER provided below.
+   - Output a CSV containing every row EXCEPT the one(s) the user asked to remove.
+   - Do NOT change any FAIR parameter values (tef_min, tef_mode, tef_max, vuln_prob, loss_min, loss_mode, loss_max) for the remaining rows — reproduce them EXACTLY as given in the current register.
+   - Output MUST be a single markdown code block (`csv ... `) with the same header columns as above.
+   - Briefly confirm in plain text which asset(s) you removed before the CSV block.
+
+3. IF THE USER ASKS ABOUT THE CURRENT DASHBOARD RESULTS OR METRICS:
     - Use the SIMULATION OUTPUT JSON provided below to answer questions regarding EAL, VaR, or top risk drivers.
+
+CURRENT REGISTER (exact current data — use this as the source of truth for removal requests):
+{current_register_records}
 
 SIMULATION OUTPUT (JSON):
 {analytics_context}
@@ -1008,9 +1887,6 @@ with col2:
     }, {
         "Metric": "99% VaR ($)",
         "Value": f"${portfolio_summary['var_99']:,.0f}"
-    }, {
-        "Metric": "Std Dev ($)",
-        "Value": f"${portfolio_summary['std_dev']:,.0f}"
     }])
     
     summary_excel = io.BytesIO()
@@ -1022,3 +1898,361 @@ with col2:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         help="Export portfolio summary metrics as an Excel file"
     )
+
+
+# ==============================================================================
+# 12. LIVE CONTINUOUS RISK MONITOR — reads directly from db/risk_platform.db
+# ------------------------------------------------------------------------------
+# Everything above this line is the original, unchanged CSV-upload simulator.
+# Everything below is NEW: it reads live data produced by the separate
+# pipeline (db_setup.py -> fetch_nvd.py -> risk_engine.py, and continuously
+# updated by webhook_listener.py on every GitHub push / new asset addition).
+#
+# This is what actually makes the webhook / continuous-evaluation work visible
+# in the dashboard — without this section, none of that backend work shows up
+# anywhere in the UI.
+# ==============================================================================
+import sqlite3
+
+st.divider()
+st.header("🗄️ Live Continuous Risk Monitor (Database-Backed)")
+st.caption(
+    "Reads directly from db/risk_platform.db — reflects the FAIR/Monte Carlo "
+    "engine, NVD CVE feed, and GitHub webhook pipeline running in the background. "
+    "This updates automatically whenever risk_engine.py or webhook_listener.py runs."
+)
+
+# Assumes dashboard.py sits at the project root, with db/ as a sibling folder:
+#   SIH/
+#   ├── dashboard.py   <- this file
+#   └── db/
+#       └── risk_platform.db
+LIVE_DB_PATH = Path(__file__).resolve().parent / "db" / "risk_platform.db"
+
+
+def _load_live_data():
+    """Reads assets + latest risk_results, full risk_history, and recent
+    vulnerability_flags from the live SQLite database. Returns empty
+    DataFrames (not an error) if the DB or tables don't exist yet, so the
+    dashboard degrades gracefully instead of crashing."""
+    empty = (pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
+    if not LIVE_DB_PATH.exists():
+        return empty
+    try:
+        conn = sqlite3.connect(LIVE_DB_PATH)
+
+        assets_risk_df = pd.read_sql("""
+            SELECT a.asset_id, a.asset_name, a.tech_keyword, a.criticality,
+                   a.mfa_enabled, a.patched, a.firewall, a.network_segmented,
+                   r.eal, r.var_95, r.risk_level
+            FROM assets a
+            LEFT JOIN risk_results r ON a.asset_id = r.asset_id
+        """, conn)
+
+        try:
+            history_df = pd.read_sql(
+                "SELECT * FROM risk_history ORDER BY timestamp", conn
+            )
+        except Exception:
+            history_df = pd.DataFrame()
+
+        try:
+            flags_df = pd.read_sql(
+                "SELECT * FROM vulnerability_flags ORDER BY timestamp DESC LIMIT 15", conn
+            )
+        except Exception:
+            flags_df = pd.DataFrame()
+
+        conn.close()
+        return assets_risk_df, history_df, flags_df
+    except Exception as e:
+        st.warning(f"Could not read live database: {e}")
+        return empty
+
+
+live_assets_df, live_history_df, live_flags_df = _load_live_data()
+
+if not LIVE_DB_PATH.exists():
+    st.info(
+        "No live database found yet at `db/risk_platform.db`. "
+        "Run `db/db_setup.py`, then `src/fetch_nvd.py`, then `src/risk_engine.py` "
+        "to populate it — this section will populate automatically once it exists."
+    )
+elif live_assets_df.empty:
+    st.info("Database found, but no assets yet. Run the pipeline scripts to populate it.")
+else:
+    # --- KPI row (live) ---
+    live_total_eal = live_assets_df["eal"].fillna(0).sum()
+    live_total_var95 = live_assets_df["var_95"].fillna(0).sum()
+    last_updated = live_history_df["timestamp"].max() if not live_history_df.empty else "N/A"
+
+    lk1, lk2, lk3, lk4 = st.columns(4)
+    lk1.metric("Live Monitored Assets", len(live_assets_df))
+    lk2.metric("Live Portfolio EAL", f"${live_total_eal:,.0f}")
+    lk3.metric("Live Portfolio 95% VaR", f"${live_total_var95:,.0f}")
+    lk4.metric("Last Recalculated", str(last_updated)[:19] if last_updated != "N/A" else "N/A")
+
+    st.markdown("#### Live Asset Risk Table")
+    st.dataframe(
+        live_assets_df.rename(columns={
+            "asset_id": "ID", "asset_name": "Asset", "tech_keyword": "Tech Keyword",
+            "criticality": "Criticality", "eal": "EAL ($)", "var_95": "95% VaR ($)",
+            "risk_level": "Risk Level",
+        }),
+        width="stretch", hide_index=True,
+        column_config={
+            "EAL ($)": st.column_config.NumberColumn(format="$%,.0f"),
+            "95% VaR ($)": st.column_config.NumberColumn(format="$%,.0f"),
+        },
+    )
+
+    # --- Continuous evaluation trend chart ---
+    st.markdown("#### 📈 Risk Trend Over Time (Proof of Continuous Evaluation)")
+    if not live_history_df.empty and len(live_history_df["timestamp"].unique()) > 1:
+        trend_df = (
+            live_history_df.groupby("timestamp", as_index=False)
+            .agg(portfolio_eal=("eal", "sum"), portfolio_var95=("var_95", "sum"))
+            .sort_values("timestamp")
+        )
+        fig_trend = go.Figure()
+        fig_trend.add_trace(go.Scatter(
+            x=trend_df["timestamp"], y=trend_df["portfolio_eal"],
+            mode="lines+markers", name="Portfolio EAL",
+            line=dict(color="#22c55e"),
+        ))
+        fig_trend.add_trace(go.Scatter(
+            x=trend_df["timestamp"], y=trend_df["portfolio_var95"],
+            mode="lines+markers", name="Portfolio 95% VaR",
+            line=dict(color="#ef4444"),
+        ))
+        fig_trend.update_layout(
+            xaxis_title="Evaluation Run", yaxis_title="USD",
+            height=320, margin=dict(l=10, r=10, t=10, b=10),
+            legend=dict(orientation="h", y=1.15),
+        )
+        st.plotly_chart(fig_trend, width="stretch")
+    else:
+        st.caption(
+            "Trend will appear here once risk_engine.py has run more than once — "
+            "each run (manual, or auto-triggered by the webhook) adds one point."
+        )
+
+    # --- Recently flagged vulnerabilities (from webhook_listener.py) ---
+    st.markdown("#### 🚩 Recently Flagged Changes (via GitHub Webhook)")
+    if not live_flags_df.empty:
+        st.dataframe(
+            live_flags_df.rename(columns={
+                "timestamp": "When", "repo_name": "Repo", "changed_files": "Changed Files",
+                "commit_message": "Commit Message", "high_severity_count": "High-Sev Matches",
+                "top_cves": "Top CVEs",
+            }),
+            width="stretch", hide_index=True,
+        )
+    else:
+        st.caption(
+            "No webhook-triggered flags yet. Push a change to your connected GitHub "
+            "repo (see webhook_listener.py) to see entries appear here automatically."
+        )
+
+    if st.button("🔄 Refresh Live Data"):
+        st.rerun()
+
+
+# ==============================================================================
+# 13. CONNECT A GITHUB REPOSITORY — registers the webhook via GitHub's API
+# ------------------------------------------------------------------------------
+# This replaces the manual "GitHub -> Settings -> Webhooks -> Add webhook"
+# steps with a form right here. It calls GitHub's REST API to create the
+# webhook on the given repo, pointed at your running webhook_listener.py
+# (via its public ngrok/Cloudflare tunnel URL).
+# ==============================================================================
+import json
+
+CONNECTED_REPOS_PATH = Path(__file__).resolve().parent / "connected_repos.json"
+
+
+def _load_connected_repos():
+    if CONNECTED_REPOS_PATH.exists():
+        try:
+            return json.loads(CONNECTED_REPOS_PATH.read_text())
+        except Exception:
+            return []
+    return []
+
+
+def _save_connected_repos(repos):
+    CONNECTED_REPOS_PATH.write_text(json.dumps(repos, indent=2))
+
+
+def register_github_webhook(repo_url, webhook_url, token):
+    """Calls GitHub's REST API to create a push-event webhook on the given
+    repo. Returns (success: bool, result: dict or error message str)."""
+    match = re.search(r"github\.com/([^/]+)/([^/]+?)(\.git)?/?$", repo_url.strip())
+    if not match:
+        return False, "Could not parse owner/repo from URL. Expected format: https://github.com/owner/repo"
+    owner, repo = match.group(1), match.group(2)
+
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/hooks"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    payload = {
+        "name": "web",
+        "active": True,
+        "events": ["push"],
+        "config": {"url": webhook_url, "content_type": "json"},
+    }
+
+    try:
+        resp = requests.post(api_url, headers=headers, json=payload, timeout=15)
+        if resp.status_code == 201:
+            return True, resp.json()
+        return False, f"GitHub API error {resp.status_code}: {resp.text[:300]}"
+    except Exception as e:
+        return False, str(e)
+
+
+st.divider()
+st.header("🔗 Connect a GitHub Repository")
+st.caption(
+    "Registers a webhook on your repo so every push automatically triggers "
+    "vulnerability re-checks via webhook_listener.py — no need to set this up "
+    "manually in GitHub's Settings page."
+)
+
+with st.form("connect_repo_form"):
+    repo_url_input = st.text_input(
+        "GitHub Repository URL",
+        placeholder="https://github.com/your-username/your-repo",
+    )
+    webhook_url_input = st.text_input(
+        "Your Webhook Listener's Public URL",
+        placeholder="https://xxxx.trycloudflare.com/webhooks/github",
+        help=(
+            "The ngrok/Cloudflare tunnel URL pointing at your running "
+            "webhook_listener.py, with /webhooks/github appended at the end."
+        ),
+    )
+    token_input = st.text_input(
+        "GitHub Personal Access Token",
+        type="password",
+        value=os.getenv("GITHUB_PAT", ""),
+        help=(
+            "Needs the 'admin:repo_hook' scope (classic token) or 'Webhooks: "
+            "Read and write' (fine-grained token). Used only to make this one "
+            "API call — never saved to disk."
+        ),
+    )
+    submitted = st.form_submit_button("Register Webhook")
+
+if submitted:
+    if not repo_url_input or not webhook_url_input or not token_input:
+        st.error("Please fill in all three fields.")
+    else:
+        with st.spinner("Registering webhook on GitHub..."):
+            success, result = register_github_webhook(repo_url_input, webhook_url_input, token_input)
+        if success:
+            st.success(f"✅ Webhook registered successfully on {repo_url_input}")
+            repos = _load_connected_repos()
+            repos.append({
+                "repo_url": repo_url_input,
+                "webhook_url": webhook_url_input,
+                "registered_at": pd.Timestamp.now().isoformat(),
+                "hook_id": result.get("id"),
+            })
+            _save_connected_repos(repos)
+        else:
+            st.error(f"❌ Failed to register webhook: {result}")
+
+st.markdown("#### Connected Repositories")
+connected_repos = _load_connected_repos()
+if connected_repos:
+    st.dataframe(
+        pd.DataFrame(connected_repos).rename(columns={
+            "repo_url": "Repository", "webhook_url": "Webhook URL",
+            "registered_at": "Registered At", "hook_id": "Hook ID",
+        }),
+        width="stretch", hide_index=True,
+    )
+else:
+    st.caption("No repositories connected yet — use the form above.")
+
+
+# ==============================================================================
+# 14. MONITORING MODE — customer chooses what actually runs
+# ------------------------------------------------------------------------------
+# webhook_listener.py runs two independent continuous-evaluation mechanisms:
+#   - GitHub webhook   : reacts instantly to code pushes
+#   - Scheduled rescan : reacts to time passing / new CVEs on unchanged assets
+# This section lets the customer pick which one(s) should actually be active.
+# The choice is written to monitoring_config.json at the project root, which
+# webhook_listener.py reads before acting on either mechanism — so this
+# controls real behavior in the other process, without needing to restart it.
+# ==============================================================================
+MONITORING_CONFIG_PATH = Path(__file__).resolve().parent / "monitoring_config.json"
+
+MODE_LABELS = {
+    "webhook": "GitHub Webhook Only (reacts to code pushes)",
+    "scheduled": "Scheduled Rescan Only (reacts to time / new CVEs)",
+    "both": "Both (recommended — full coverage)",
+}
+MODE_KEYS_BY_LABEL = {v: k for k, v in MODE_LABELS.items()}
+
+
+def _load_monitoring_mode():
+    if MONITORING_CONFIG_PATH.exists():
+        try:
+            return json.loads(MONITORING_CONFIG_PATH.read_text()).get("mode", "both")
+        except Exception:
+            return "both"
+    return "both"
+
+
+def _save_monitoring_mode(mode):
+    MONITORING_CONFIG_PATH.write_text(json.dumps({"mode": mode}, indent=2))
+
+
+st.divider()
+st.header("⚙️ Continuous Monitoring Mode")
+st.caption(
+    "Choose which continuous-evaluation mechanism should be active. This "
+    "setting is read by webhook_listener.py — no restart needed, it takes "
+    "effect on the next push or the next scheduled scan tick."
+)
+
+current_mode = _load_monitoring_mode()
+current_label = MODE_LABELS.get(current_mode, MODE_LABELS["both"])
+
+chosen_label = st.radio(
+    "Select monitoring mode",
+    options=list(MODE_LABELS.values()),
+    index=list(MODE_LABELS.values()).index(current_label),
+)
+
+if st.button("Save Monitoring Mode"):
+    chosen_mode = MODE_KEYS_BY_LABEL[chosen_label]
+    _save_monitoring_mode(chosen_mode)
+    st.success(f"✅ Monitoring mode set to: {MODE_LABELS[chosen_mode]}")
+
+# Show live status pulled directly from the running webhook_listener.py,
+# if it's reachable — proves the setting is actually being read there.
+st.markdown("#### Listener Status")
+listener_status_url = st.text_input(
+    "Webhook listener base URL (local or tunnel)",
+    value="http://localhost:8001",
+    help="Usually http://localhost:8001 if checking from the same machine.",
+)
+if st.button("Check Listener Status"):
+    try:
+        resp = requests.get(f"{listener_status_url.rstrip('/')}/monitoring/status", timeout=5)
+        if resp.status_code == 200:
+            status_data = resp.json()
+            st.success(
+                f"Listener is running. Active mode: **{MODE_LABELS.get(status_data['mode'], status_data['mode'])}** "
+                f"(scheduled scan interval: {status_data['scan_interval_minutes']} min)"
+            )
+        else:
+            st.warning(f"Listener responded with status {resp.status_code}.")
+    except Exception as e:
+        st.error(f"Could not reach the listener at that URL: {e}")

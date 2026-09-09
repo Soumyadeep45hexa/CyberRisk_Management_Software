@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -55,6 +56,26 @@ def calculate_asset_risk(asset, cve_scores):
     
     return eal, var_95
 
+
+def ensure_history_table(cursor):
+    """Purely additive — does not touch assets/cves/risk_results/optimization_results.
+    risk_results uses asset_id as PRIMARY KEY, so it only ever holds the latest
+    snapshot per asset. This table appends a timestamped row every run instead,
+    which is what actually lets the dashboard show a trend and demonstrate
+    continuous (not one-off) risk evaluation."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS risk_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id TEXT,
+            eal REAL,
+            var_95 REAL,
+            risk_level TEXT,
+            timestamp TEXT,
+            FOREIGN KEY (asset_id) REFERENCES assets(asset_id)
+        )
+    """)
+
+
 def run_risk_engine():
     if not DB_PATH.exists():
         print(f"Error: Database file not found at {DB_PATH}")
@@ -63,6 +84,8 @@ def run_risk_engine():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+
+    ensure_history_table(cursor)
     
     # Fetch all normalized assets from the database
     cursor.execute("SELECT * FROM assets")
@@ -74,6 +97,7 @@ def run_risk_engine():
         return
 
     total_processed = 0
+    run_timestamp = datetime.now().isoformat()
     
     for asset in assets:
         # Fetch matching CVE severity scores for asset tech_keyword
@@ -94,17 +118,24 @@ def run_risk_engine():
         else:
             risk_level = "LOW"
             
-        # Store calculated results in risk_results table
+        # Store calculated results in risk_results table (latest snapshot — unchanged)
         cursor.execute("""
             INSERT OR REPLACE INTO risk_results (asset_id, eal, var_95, risk_level)
             VALUES (?, ?, ?, ?)
         """, (asset['asset_id'], eal, var_95, risk_level))
+
+        # NEW: also append to risk_history (time series — never overwritten)
+        cursor.execute("""
+            INSERT INTO risk_history (asset_id, eal, var_95, risk_level, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+        """, (asset['asset_id'], eal, var_95, risk_level, run_timestamp))
         
         total_processed += 1
         
     conn.commit()
     conn.close()
     print(f"Risk calculation complete! Successfully processed {total_processed} assets into 'risk_results' table.")
+    print(f"Also logged {total_processed} rows to 'risk_history' at {run_timestamp} for trend tracking.")
 
 if __name__ == "__main__":
     run_risk_engine()

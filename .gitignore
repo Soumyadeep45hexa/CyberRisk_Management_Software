@@ -1,0 +1,47 @@
+# Docker Specific Exclusions
+.docker/
+*.tar
+*.tar.gz
+docker-compose.override.yml
+
+# Environment Variables & Secrets (CRITICAL FOR SECURITY)
+.env
+.env.*
+.streamlit/secrets.toml
+
+# Local Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+.venv-run
+
+# Database Files (Local SQLite DBs)
+*.db
+*.sqlite3
+*.sqlite
+db/risk_platform.db
+cyber_risk.db
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+*.swp
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Temporary Exports & PDF Documentation
+export-assets-*.xlsx
+export-assets-*.csv
+*.pdf
+dashboard_dependencies.html
+
+
+*.exe

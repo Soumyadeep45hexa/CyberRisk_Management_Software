@@ -1,0 +1,62 @@
+[
+  {
+    "asset_name":"Payment Gateway API",
+    "threat_event":"API credential theft",
+    "vulnerability":"CVE-2001-0950",
+    "risk_level":"High",
+    "tef_min":0.1,
+    "tef_mode":0.5,
+    "tef_max":1.2,
+    "vuln_prob":0.05,
+    "loss_min":1219000,
+    "loss_mode":1757000,
+    "loss_max":3598000,
+    "depends_on":null,
+    "exposure_multiplier":1
+  },
+  {
+    "asset_name":"Employee Workstations",
+    "threat_event":"Malware infection",
+    "vulnerability":"Outdated anti\u2011virus",
+    "risk_level":"Medium",
+    "tef_min":1.2,
+    "tef_mode":4.0,
+    "tef_max":10.0,
+    "vuln_prob":0.5,
+    "loss_min":1220000,
+    "loss_mode":2440000,
+    "loss_max":8540000,
+    "depends_on":null,
+    "exposure_multiplier":1
+  },
+  {
+    "asset_name":"Legacy File Server",
+    "threat_event":"Ransomware encryption",
+    "vulnerability":"CVE-2026-26219",
+    "risk_level":"Critical",
+    "tef_min":0.1,
+    "tef_mode":0.5,
+    "tef_max":1.2,
+    "vuln_prob":0.05,
+    "loss_min":1775000,
+    "loss_mode":2538000,
+    "loss_max":5091000,
+    "depends_on":null,
+    "exposure_multiplier":1
+  },
+  {
+    "asset_name":"Payment gateway",
+    "threat_event":"Unauthorized interception and alteration of transaction data",
+    "vulnerability":"CVE-2026-81717",
+    "risk_level":"Low",
+    "tef_min":0.1,
+    "tef_mode":0.5,
+    "tef_max":1.2,
+    "vuln_prob":0.05,
+    "loss_min":854000,
+    "loss_mode":1220000,
+    "loss_max":2443000,
+    "depends_on":"Payment Gateway API",
+    "exposure_multiplier":5
+  }
+]

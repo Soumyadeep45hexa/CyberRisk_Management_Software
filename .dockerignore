@@ -1,0 +1,22 @@
+# Don't copy these into the Docker image - they're either huge,
+# platform-specific, or shouldn't be inside a shareable image at all.
+
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+
+.vscode/
+.streamlit/secrets.toml
+.env
+.env.*
+
+.git/
+.gitignore
+
+*.tar
+*.tar.gz
+
+db/*.db
+*.sqlite3
