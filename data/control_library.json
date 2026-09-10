@@ -3,7 +3,7 @@
     "control_id":"ctrl_llm_0",
     "asset_name":"Payment Gateway API",
     "control_name":"Mutual TLS with certificate pinning",
-    "cost":120000,
+    "cost":120000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.4,
     "loss_reduction_pct":0.0
@@ -12,7 +12,7 @@
     "control_id":"ctrl_llm_1",
     "asset_name":"Payment Gateway API",
     "control_name":"Multi\u2011Factor Authentication for API access",
-    "cost":80000,
+    "cost":80000.0,
     "vuln_prob_reduction_pct":0.5,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
@@ -21,7 +21,7 @@
     "control_id":"ctrl_llm_2",
     "asset_name":"Payment Gateway API",
     "control_name":"Automated API key rotation stored in secret manager",
-    "cost":50000,
+    "cost":50000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.3
@@ -30,7 +30,7 @@
     "control_id":"ctrl_llm_3",
     "asset_name":"Employee Workstations",
     "control_name":"Centralized patch\u2011management automation",
-    "cost":70000,
+    "cost":70000.0,
     "vuln_prob_reduction_pct":0.6,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
@@ -39,7 +39,7 @@
     "control_id":"ctrl_llm_4",
     "asset_name":"Employee Workstations",
     "control_name":"Security awareness & phishing training",
-    "cost":30000,
+    "cost":30000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.35,
     "loss_reduction_pct":0.0
@@ -48,43 +48,16 @@
     "control_id":"ctrl_llm_5",
     "asset_name":"Employee Workstations",
     "control_name":"Endpoint Detection and Response (EDR) solution",
-    "cost":150000,
+    "cost":150000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.5
   },
   {
-    "control_id":"ctrl_llm_6",
-    "asset_name":"Legacy File Server",
-    "control_name":"Vendor security patch application",
-    "cost":40000,
-    "vuln_prob_reduction_pct":0.5,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_7",
-    "asset_name":"Legacy File Server",
-    "control_name":"Network segmentation (isolated VLAN)",
-    "cost":60000,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.45,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_8",
-    "asset_name":"Legacy File Server",
-    "control_name":"Offline immutable backups",
-    "cost":90000,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.6
-  },
-  {
     "control_id":"ctrl_llm_2",
     "asset_name":"Payment Gateway API",
     "control_name":"Multi\u2011factor authentication for API admin accounts",
-    "cost":20000,
+    "cost":20000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.7,
     "loss_reduction_pct":0.0
@@ -93,7 +66,7 @@
     "control_id":"ctrl_llm_3",
     "asset_name":"Payment Gateway API",
     "control_name":"Centralized secret vault with credential rotation",
-    "cost":15000,
+    "cost":15000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.5
@@ -102,7 +75,7 @@
     "control_id":"ctrl_llm_4",
     "asset_name":"Employee Workstations",
     "control_name":"Endpoint Detection & Response (EDR) platform",
-    "cost":40000,
+    "cost":40000.0,
     "vuln_prob_reduction_pct":0.5,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
@@ -111,34 +84,16 @@
     "control_id":"ctrl_llm_5",
     "asset_name":"Employee Workstations",
     "control_name":"Quarterly security awareness and phishing simulation training",
-    "cost":10000,
+    "cost":10000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.4,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_6",
-    "asset_name":"Legacy File Server",
-    "control_name":"Offline, air\u2011gapped backups with regular restore testing",
-    "cost":60000,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.8
-  },
-  {
-    "control_id":"ctrl_llm_7",
-    "asset_name":"Legacy File Server",
-    "control_name":"Application whitelisting on the file server",
-    "cost":25000,
-    "vuln_prob_reduction_pct":0.5,
-    "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
   },
   {
     "control_id":"ctrl_llm_3",
     "asset_name":"Payment Gateway API",
     "control_name":"Centralized API secret management with automatic rotation",
-    "cost":20000,
+    "cost":20000.0,
     "vuln_prob_reduction_pct":0.5,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
@@ -147,7 +102,7 @@
     "control_id":"ctrl_llm_4",
     "asset_name":"Payment Gateway API",
     "control_name":"Multi\u2011factor authentication for API developer access",
-    "cost":15000,
+    "cost":15000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.4,
     "loss_reduction_pct":0.0
@@ -156,7 +111,7 @@
     "control_id":"ctrl_llm_5",
     "asset_name":"Payment Gateway API",
     "control_name":"Incident response playbook for API breach",
-    "cost":12000,
+    "cost":12000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.6
@@ -165,7 +120,7 @@
     "control_id":"ctrl_llm_6",
     "asset_name":"Employee Workstations",
     "control_name":"Enterprise\u2011grade AV\/EDR deployment",
-    "cost":35000,
+    "cost":35000.0,
     "vuln_prob_reduction_pct":0.55,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
@@ -174,7 +129,7 @@
     "control_id":"ctrl_llm_7",
     "asset_name":"Employee Workstations",
     "control_name":"Quarterly security awareness training",
-    "cost":8000,
+    "cost":8000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.45,
     "loss_reduction_pct":0.0
@@ -183,63 +138,198 @@
     "control_id":"ctrl_llm_8",
     "asset_name":"Employee Workstations",
     "control_name":"Full\u2011disk encryption with remote wipe capability",
-    "cost":15000,
+    "cost":15000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.5
   },
   {
-    "control_id":"ctrl_llm_9",
-    "asset_name":"Legacy File Server",
-    "control_name":"Patch deployment for CVE-2026-26219",
-    "cost":12000,
-    "vuln_prob_reduction_pct":0.65,
-    "tef_reduction_pct":0.0,
+    "control_id":"ctrl_llm_0",
+    "asset_name":"Payment Gateway API",
+    "control_name":"MFA enforcement for API admin accounts",
+    "cost":12000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.6,
     "loss_reduction_pct":0.0
   },
   {
-    "control_id":"ctrl_llm_10",
-    "asset_name":"Legacy File Server",
-    "control_name":"Network isolation (air\u2011gap) of legacy server",
-    "cost":25000,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.5,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_11",
-    "asset_name":"Legacy File Server",
-    "control_name":"Offline immutable backup solution",
-    "cost":20000,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.75
-  },
-  {
-    "control_id":"ctrl_llm_12",
-    "asset_name":"Payment gateway",
-    "control_name":"TLS\u202f1.3 enforcement with certificate pinning",
-    "cost":18000,
+    "control_id":"ctrl_llm_1",
+    "asset_name":"Payment Gateway API",
+    "control_name":"Secret management with automated credential rotation",
+    "cost":18000.0,
     "vuln_prob_reduction_pct":0.5,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
   },
   {
-    "control_id":"ctrl_llm_13",
-    "asset_name":"Payment gateway",
-    "control_name":"HMAC signing of all transaction payloads",
-    "cost":14000,
+    "control_id":"ctrl_llm_2",
+    "asset_name":"Payment Gateway API",
+    "control_name":"TLS 1.3 encryption for API traffic",
+    "cost":8000.0,
     "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.45,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.4
+  },
+  {
+    "control_id":"ctrl_llm_3",
+    "asset_name":"Employee Workstations",
+    "control_name":"Enterprise EDR deployment",
+    "cost":30000.0,
+    "vuln_prob_reduction_pct":0.6,
+    "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
   },
   {
-    "control_id":"ctrl_llm_14",
-    "asset_name":"Payment gateway",
-    "control_name":"Real\u2011time transaction monitoring and fraud detection",
-    "cost":30000,
+    "control_id":"ctrl_llm_4",
+    "asset_name":"Employee Workstations",
+    "control_name":"Security awareness training program",
+    "cost":5000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.5,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_5",
+    "asset_name":"Employee Workstations",
+    "control_name":"Offline workstation backup solution",
+    "cost":20000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.6
+    "loss_reduction_pct":0.5
+  },
+  {
+    "control_id":"ctrl_llm_0",
+    "asset_name":"Payment Gateway API",
+    "control_name":"Enforce MFA for API access",
+    "cost":50000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.6,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_1",
+    "asset_name":"Payment Gateway API",
+    "control_name":"Automated secret rotation via vault",
+    "cost":40000.0,
+    "vuln_prob_reduction_pct":0.5,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_2",
+    "asset_name":"Payment Gateway API",
+    "control_name":"WAF with custom API anomaly rules",
+    "cost":30000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.4
+  },
+  {
+    "control_id":"ctrl_llm_3",
+    "asset_name":"Employee Workstations",
+    "control_name":"Centralized patch management automation",
+    "cost":20000.0,
+    "vuln_prob_reduction_pct":0.7,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_4",
+    "asset_name":"Employee Workstations",
+    "control_name":"Security awareness training program",
+    "cost":15000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.5,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_5",
+    "asset_name":"Employee Workstations",
+    "control_name":"Endpoint Detection & Response (EDR) solution",
+    "cost":60000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.5
+  },
+  {
+    "control_id":"ctrl_llm_0",
+    "asset_name":"Core Database Server",
+    "control_name":"Automated critical patch management",
+    "cost":20000.0,
+    "vuln_prob_reduction_pct":0.6,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_1",
+    "asset_name":"Core Database Server",
+    "control_name":"Web Application Firewall (WAF) rules for SQL injection",
+    "cost":15000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.5,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_2",
+    "asset_name":"Core Database Server",
+    "control_name":"Database activity monitoring and encryption at rest",
+    "cost":25000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.4
+  },
+  {
+    "control_id":"ctrl_llm_3",
+    "asset_name":"Payment Gateway API",
+    "control_name":"Strict OAuth token validation with scoped permissions",
+    "cost":30000.0,
+    "vuln_prob_reduction_pct":0.5,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_4",
+    "asset_name":"Payment Gateway API",
+    "control_name":"Multi\u2011factor authentication for API administrative access",
+    "cost":10000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.6,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_5",
+    "asset_name":"Payment Gateway API",
+    "control_name":"API gateway with rate limiting and detailed logging",
+    "cost":12000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.3
+  },
+  {
+    "control_id":"ctrl_llm_6",
+    "asset_name":"Employee Workstations",
+    "control_name":"Centralized endpoint detection & response (EDR)",
+    "cost":40000.0,
+    "vuln_prob_reduction_pct":0.7,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_7",
+    "asset_name":"Employee Workstations",
+    "control_name":"Quarterly security awareness training",
+    "cost":5000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.5,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_8",
+    "asset_name":"Employee Workstations",
+    "control_name":"Automated OS and software patching",
+    "cost":8000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.2
   }
 ]

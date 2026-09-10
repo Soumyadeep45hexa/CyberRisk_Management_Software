@@ -18,6 +18,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from dotenv import load_dotenv
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+from dotenv import load_dotenv
 
 # Load the project credentials even when Streamlit is launched from another directory.
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
@@ -31,10 +35,75 @@ st.set_page_config(
     page_title="Cyber Risk Quantification Dashboard",
     page_icon="🛡️",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
-st.title("🛡️ Cyber Risk Quantification Dashboard")
-st.caption("FAIR-model Monte Carlo simulation • Real-time NVD Vulnerability Scoring • recomputes live as you edit data")
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] { min-width: 390px; max-width: 390px; }
+    [data-testid="stSidebar"] [data-testid="stChatMessage"] { padding: .35rem 0; }
+    .workflow-card {
+        border: 1px solid rgba(148, 163, 184, .35); border-radius: 12px;
+        padding: .9rem 1rem; min-height: 92px; background: rgba(15, 23, 42, .03);
+    }
+    .workflow-card h4 { margin: 0 0 .35rem 0; }
+    .workflow-card p { margin: 0; color: #64748b; font-size: .87rem; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🛡️ Cyber Risk Command Center")
+st.caption("FAIR-model Monte Carlo simulation • NVD vulnerability enrichment • decision-ready cyber risk management")
+
+CURRENCY_OPTIONS = {
+    "Dollar (USD)": ("$", 1.0),
+    "Rupee (INR)": ("₹", 83.0),
+}
+selected_currency = st.sidebar.selectbox(
+    "Display currency",
+    options=list(CURRENCY_OPTIONS),
+    key="display_currency",
+)
+currency_symbol, currency_rate = CURRENCY_OPTIONS[selected_currency]
+
+
+def format_money(value, decimals=0):
+    converted = float(value or 0) * currency_rate
+    return f"{currency_symbol}{converted:,.{decimals}f}"
+
+
+def currency_label(label):
+    return f"{label} ({selected_currency.split(' ')[-1].strip('()')})"
+
+# This placeholder is deliberately created before every other sidebar element.
+# The LLM chat is populated after the simulation has calculated its context,
+# but remains visually pinned at the top of the left sidebar.
+assistant_slot = st.sidebar.empty()
 st.sidebar.caption("🔧 Build: investment-optimizer-v3")
+
+st.markdown("### Workspace")
+nav_overview, nav_assets, nav_eal, nav_optimise, nav_monitor, nav_integrate = st.tabs([
+    "Overview", "Asset Upload", "EAL Calculation", "Optimization",
+    "Live Monitoring", "Integrations",
+])
+st.caption("Select a workspace to view only its controls, analysis, and results.")
+asset_tab, eal_tab, optimization_tab, monitoring_tab, integrations_tab = st.tabs([
+    "📁 Asset Upload",
+    "📊 EAL Calculations",
+    "💰 Optimization",
+    "🗄️ Live Monitoring",
+    "🔗 Integrations",
+])
+with nav_overview:
+    st.markdown("Use this command center to quantify portfolio exposure, identify risk drivers, and prioritize the controls that reduce loss most efficiently.")
+with nav_assets:
+    st.markdown("[Go to asset intake and the editable risk register](#asset-upload)")
+with nav_eal:
+    st.markdown("[Go to FAIR simulation, EAL, VaR, trends, and risk drivers](#eal-calculation)")
+with nav_optimise:
+    st.markdown("[Go to security-control investment optimization](#investment-optimization)")
+with nav_monitor:
+    st.markdown("[Go to the database-backed continuous risk monitor](#live-monitoring)")
+with nav_integrate:
+    st.markdown("[Go to GitHub webhook and monitoring integrations](#integrations)")
 
 SEVERITY_COLORS = {
     "Critical": "#b91c1c",
@@ -73,7 +142,7 @@ def pert_sample(min_val, mode, max_val, size, rng, lam=4.0):
     return min_val + rng.beta(alpha, beta, size=size) * rng_span
 
 
-def simulate_asset(row, n_sim, rng, max_events_cap=60, upstream_breached=None):
+def simulate_asset(row, n_sim, rng, max_events_cap=12, upstream_breached=None):
     tef = pert_sample(row["tef_min"], row["tef_mode"], row["tef_max"], n_sim, rng)
     vuln = np.clip(rng.normal(row["vuln_prob"], row["vuln_prob"] * 0.15 + 0.02, n_sim), 0.0, 1.0)
     lef = tef * vuln
@@ -396,7 +465,6 @@ INDUSTRY_AVG_BREACH_COST = {
     "default": 4_880_000,
 }
 
-
 def fetch_nvd_details(vuln_text):
     cve_match = re.search(r"CVE-\d{4}-\d{4,7}", str(vuln_text), re.IGNORECASE)
     base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
@@ -477,25 +545,47 @@ def fetch_epss_score(cve_id):
 def calculate_dynamic_loss(
     impact_score, exploitability_score, epss_score, sector="default"
 ):
-    industry_avg_breach_cost = INDUSTRY_AVG_BREACH_COST.get(
-        sector, INDUSTRY_AVG_BREACH_COST["default"]
-    )
-    severity_factor = np.clip(impact_score / 10.0, 0.05, 1.0)
+    """Estimate the loss of one incident affecting one asset, in USD.
+
+    Industry breach-cost figures describe an entire organization-wide breach,
+    so they are deliberately not used as an input here.
+    """
+    asset_base_loss = {
+        "healthcare": 30_000,
+        "financial": 25_000,
+        "technology": 20_000,
+        "energy": 30_000,
+        "industrial": 22_000,
+        "retail": 18_000,
+        "public_sector": 15_000,
+        "default": 15_000,
+    }
+    base_loss = asset_base_loss.get(sector, asset_base_loss["default"])
+    impact = float(np.clip(impact_score or 0.0, 0.0, 10.0))
+    exploitability = float(np.clip(exploitability_score or 0.0, 0.0, 10.0))
     likelihood_factor = (
-        epss_score
+        float(np.clip(epss_score, 0.01, 0.95))
         if epss_score is not None
-        else np.clip(exploitability_score / 10.0, 0.05, 1.0)
+        else float(np.clip(exploitability / 10.0, 0.05, 0.80))
     )
 
-    loss_mode = round(industry_avg_breach_cost * severity_factor, -3)
-    loss_min = round(loss_mode * (0.3 + 0.4 * (1 - likelihood_factor)), -3)
-    loss_max = round(loss_mode * (2.0 + 3.0 * likelihood_factor), -3)
+    severity_multiplier = 0.25 + 1.75 * (impact / 10.0)
+    exploit_multiplier = 0.90 + 0.20 * (exploitability / 10.0)
+    loss_mode = round(base_loss * severity_multiplier * exploit_multiplier, -2)
+    loss_min = round(max(1_000, loss_mode * (0.25 + 0.15 * (1 - likelihood_factor))), -2)
+    loss_max = round(loss_mode * (1.75 + 1.25 * likelihood_factor), -2)
 
-    return loss_min, loss_mode, loss_max, likelihood_factor
+    return float(loss_min), float(loss_mode), float(loss_max), likelihood_factor
 
 
 def infer_sector(asset_name):
     name_lower = str(asset_name).lower()
+    if any(k in name_lower for k in ["patient", "ehr", "health", "clinical"]):
+        return "healthcare"
+    if any(k in name_lower for k in ["payment", "bank", "ledger", "transaction"]):
+        return "financial"
+    if any(k in name_lower for k in ["technology", "cloud", "application", "api"]):
+        return "technology"
     if any(k in name_lower for k in ["scada", "ics", "plc", "grid"]):
         return "energy"
     if any(k in name_lower for k in ["factory", "plant", "manufactur"]):
@@ -540,9 +630,9 @@ def enrich_with_nvd_dynamic_loss(df_raw):
         )
 
         vuln_prob = float(np.clip(likelihood_factor, 0.05, 0.95))
-        tef_mode = round(max(0.5, likelihood_factor * 8.0), 1)
-        tef_min = round(max(0.1, tef_mode * 0.3), 1)
-        tef_max = round(tef_mode * 2.5, 1)
+        tef_mode = round(max(0.2, likelihood_factor * 1.5), 2)
+        tef_min = round(max(0.05, tef_mode * 0.3), 2)
+        tef_max = round(tef_mode * 2.0, 2)
 
         risk_level = (
     "Critical" if cvss_score >= 9.0
@@ -596,9 +686,9 @@ def _sample_register():
             "tef_mode": 2.5,
             "tef_max": 6.0,
             "vuln_prob": 0.35,
-            "loss_min": 80000,
-            "loss_mode": 300000,
-            "loss_max": 900000,
+            "loss_min": 10_000,
+            "loss_mode": 25_000,
+            "loss_max": 65_000,
         },
         {
             "asset_name": "Employee Workstations",
@@ -980,9 +1070,45 @@ def confirm_delete_asset(asset_name):
 
 
 # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # Streamlit UI Controls
 # ------------------------------------------------------------------------------
-st.sidebar.header("📁 Asset Register")
+class _SectionUI:
+    """Routes visual calls into one workflow tab while retaining Streamlit's
+    state, cache, configuration, and column-config APIs.
+
+    The dashboard's risk engine remains shared, so changes made in Asset Upload
+    are immediately available to EAL and Optimization without duplicating state.
+    """
+
+    def __init__(self, container, streamlit_api):
+        self._container = container
+        self._streamlit = streamlit_api
+
+    @property
+    def sidebar(self):
+        # Legacy sidebar controls are now shown in the active workflow tab.
+        return self
+
+    def __getattr__(self, name):
+        if name in {
+            "session_state",
+            "cache_data",
+            "column_config",
+            "rerun",
+            "stop",
+            "form_submit_button",
+        }:
+            return getattr(self._streamlit, name)
+        if hasattr(self._container, name):
+            return getattr(self._container, name)
+        return getattr(self._streamlit, name)
+
+
+streamlit_api = st
+st = _SectionUI(asset_tab, streamlit_api)
+
+st.sidebar.header("📁 Asset Intake & Simulation")
 
 uploaded = st.sidebar.file_uploader(
     "Upload your assets (CSV or XLSX)",
@@ -1165,6 +1291,9 @@ else:
     st.session_state.last_uploaded_id = None
     register_df = st.session_state.processed_df.copy()
 
+# The EAL workspace owns simulation settings, KPI cards, charts, sensitivity,
+# and result exports.  The shared register above is still available here.
+st = _SectionUI(eal_tab, streamlit_api)
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎲 Monte Carlo Settings")
 n_sim = st.sidebar.select_slider(
@@ -1175,12 +1304,18 @@ n_sim = st.sidebar.select_slider(
 seed = st.sidebar.number_input("Random seed", value=42, step=1)
 
 st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Clear Cache & Re-scan NVD"):
+if st.sidebar.button("🔄 Clear Cache & Re-scan NVD", key="clear_cache_rescan"):
     st.session_state.clear()
     st.rerun()
+
+# Asset editing is intentionally isolated from quantitative analysis.
+st = _SectionUI(asset_tab, streamlit_api)
 # ------------------------------------------------------------------------------
 # 5. Editable register — real-time simulation trigger
 # ------------------------------------------------------------------------------
+st.markdown('<div id="asset-upload"></div>', unsafe_allow_html=True)
+st.header("📁 Asset Upload & Risk Register")
+st.caption("Import, enrich, and maintain the assets included in your FAIR risk model.")
 st.subheader("Asset Risk Register" + (" (sample data — upload your own via the sidebar)" if using_sample else ""))
 edited_df = st.data_editor(
     register_df,
@@ -1192,9 +1327,9 @@ edited_df = st.data_editor(
         "tef_mode": st.column_config.NumberColumn("TEF likely (events/yr)", format="%.2f"),
         "tef_max": st.column_config.NumberColumn("TEF max (events/yr)", format="%.2f"),
         "vuln_prob": st.column_config.NumberColumn("Vulnerability (0-1)", format="%.2f", min_value=0.0, max_value=1.0),
-        "loss_min": st.column_config.NumberColumn("Loss min ($)", format="$%,.0f"),
-        "loss_mode": st.column_config.NumberColumn("Loss likely ($)", format="$%,.0f"),
-        "loss_max": st.column_config.NumberColumn("Loss max ($)", format="$%,.0f"),
+        "loss_min": st.column_config.NumberColumn(currency_label("Loss min"), format=f"{currency_symbol}%,.0f"),
+        "loss_mode": st.column_config.NumberColumn(currency_label("Loss likely"), format=f"{currency_symbol}%,.0f"),
+        "loss_max": st.column_config.NumberColumn(currency_label("Loss max"), format=f"{currency_symbol}%,.0f"),
         "risk_level": st.column_config.SelectboxColumn(
             "Risk Level", options=["Critical", "High", "Medium", "Low"]
         ),
@@ -1234,6 +1369,15 @@ if isinstance(selected_row, int) and 0 <= selected_row < len(valid_df):
     if st.button(f"🗑️ Delete {delete_asset}", key="delete_selected_asset"):
         confirm_delete_asset(delete_asset)
 
+if isinstance(selected_row, int) and 0 <= selected_row < len(valid_df):
+    delete_asset = valid_df.iloc[selected_row]["asset_name"]
+    if st.button(f"🗑️ Delete {delete_asset}", key="delete_selected_asset"):
+        confirm_delete_asset(delete_asset)
+
+# Calculate and display portfolio exposure in the EAL workspace.
+st = _SectionUI(eal_tab, streamlit_api)
+# ------------------------------------------------------------------------------
+# 6. Run Monte Carlo Simulation
 # ------------------------------------------------------------------------------
 # 6. Run Monte Carlo Simulation
 # ------------------------------------------------------------------------------
@@ -1327,11 +1471,14 @@ filtered_df = full_df[full_df["risk_level"].isin(selected_risk)]
 # ------------------------------------------------------------------------------
 # 8. KPI Row
 # ------------------------------------------------------------------------------
+st.markdown('<div id="eal-calculation"></div>', unsafe_allow_html=True)
+st.header("📊 EAL Calculation & Portfolio Exposure")
+st.caption("Expected Annual Loss and Value at Risk from the current Monte Carlo simulation.")
 k1, k2, k3, k4, k5 = st.columns(5)
 k1.metric("Monitored Assets", len(filtered_df))
-k2.metric("Portfolio EAL", f"${portfolio_summary['eal']:,.0f}")
-k3.metric("95% VaR", f"${portfolio_summary['var_95']:,.0f}")
-k4.metric("99% VaR", f"${portfolio_summary['var_99']:,.0f}")
+k2.metric(currency_label("Portfolio EAL"), format_money(portfolio_summary["eal"]))
+k3.metric(currency_label("95% VaR"), format_money(portfolio_summary["var_95"]))
+k4.metric(currency_label("99% VaR"), format_money(portfolio_summary["var_99"]))
 top_asset = filtered_df.loc[filtered_df["eal"].idxmax()]["asset_name"] if not filtered_df.empty else "N/A"
 k5.metric("Top Risk Driver", top_asset)
 
@@ -1371,15 +1518,17 @@ if len(_trend_history) > 1:
     # Small table showing asset-count changes alongside EAL, so a removal
     # event is visually obvious (n_assets drops, EAL drops in the same row)
     with st.expander("View raw history log"):
+        history_display = _trend_history[["timestamp", "n_assets", "portfolio_eal", "portfolio_var_95", "note"]].copy()
+        history_display[["portfolio_eal", "portfolio_var_95"]] *= currency_rate
         st.dataframe(
-            _trend_history[["timestamp", "n_assets", "portfolio_eal", "portfolio_var_95", "note"]].rename(columns={
+            history_display.rename(columns={
                 "timestamp": "When", "n_assets": "# Assets",
-                "portfolio_eal": "Portfolio EAL ($)", "portfolio_var_95": "95% VaR ($)", "note": "Note",
+                "portfolio_eal": currency_label("Portfolio EAL"), "portfolio_var_95": currency_label("95% VaR"), "note": "Note",
             }),
             width="stretch", hide_index=True,
             column_config={
-                "Portfolio EAL ($)": st.column_config.NumberColumn(format="$%,.0f"),
-                "95% VaR ($)": st.column_config.NumberColumn(format="$%,.0f"),
+                currency_label("Portfolio EAL"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+                currency_label("95% VaR"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
             },
         )
 else:
@@ -1399,18 +1548,19 @@ c1, c2 = st.columns([1.3, 1])
 
 with c1:
     st.subheader("Simulated Annual Loss Distribution (Portfolio)")
-    hist_vals, hist_edges = np.histogram(portfolio_loss, bins=60)
+    display_portfolio_loss = portfolio_loss * currency_rate
+    hist_vals, hist_edges = np.histogram(display_portfolio_loss, bins=60)
     fig_hist = go.Figure()
     fig_hist.add_trace(go.Bar(
         x=hist_edges[:-1], y=hist_vals, marker_color="#3b82f6", opacity=0.75,
-        hovertemplate="Loss ≈ $%{x:,.0f}<br>Frequency: %{y}<extra></extra>",
+        hovertemplate=f"Loss ≈ {currency_symbol}%{{x:,.0f}}<br>Frequency: %{{y}}<extra></extra>",
     ))
-    fig_hist.add_vline(x=portfolio_summary["eal"], line_color="#22c55e", line_dash="dash",
+    fig_hist.add_vline(x=portfolio_summary["eal"] * currency_rate, line_color="#22c55e", line_dash="dash",
                         annotation_text="EAL", annotation_font_color="#22c55e")
-    fig_hist.add_vline(x=portfolio_summary["var_95"], line_color="#ef4444", line_dash="dash",
+    fig_hist.add_vline(x=portfolio_summary["var_95"] * currency_rate, line_color="#ef4444", line_dash="dash",
                         annotation_text="95% VaR", annotation_font_color="#ef4444")
     fig_hist.update_layout(
-        xaxis_title="Simulated Annual Loss (USD)", yaxis_title="Simulation Count",
+        xaxis_title=f"Simulated Annual Loss ({selected_currency.split(' ')[-1].strip('()')})", yaxis_title="Simulation Count",
         height=380, margin=dict(l=10, r=10, t=10, b=10),
         showlegend=False,
     )
@@ -1418,16 +1568,16 @@ with c1:
 
 with c2:
     st.subheader("Loss Exceedance Curve")
-    sorted_losses = np.sort(portfolio_loss)[::-1]
+    sorted_losses = np.sort(display_portfolio_loss)[::-1]
     exceed_prob = np.arange(1, len(sorted_losses) + 1) / len(sorted_losses)
     fig_lec = go.Figure()
     fig_lec.add_trace(go.Scatter(
         x=sorted_losses, y=exceed_prob * 100, mode="lines",
         line=dict(color="#f97316", width=2),
-        hovertemplate="Loss ≥ $%{x:,.0f}<br>Probability: %{y:.1f}%<extra></extra>",
+        hovertemplate=f"Loss ≥ {currency_symbol}%{{x:,.0f}}<br>Probability: %{{y:.1f}}%<extra></extra>",
     ))
     fig_lec.update_layout(
-        xaxis_title="Annual Loss (USD)", yaxis_title="Probability of Exceedance (%)",
+        xaxis_title=f"Annual Loss ({selected_currency.split(' ')[-1].strip('()')})", yaxis_title="Probability of Exceedance (%)",
         height=380, margin=dict(l=10, r=10, t=10, b=10),
     )
     st.plotly_chart(fig_lec, width="stretch")
@@ -1436,17 +1586,18 @@ st.subheader("Expected Annual Loss by Asset")
 if filtered_df.empty:
     st.info("No assets match the current filter.")
 else:
-    chart_df = filtered_df.sort_values("eal")
+    chart_df = filtered_df.sort_values("eal").copy()
+    chart_df[["eal", "var_95"]] *= currency_rate
     fig_bar = go.Figure()
     fig_bar.add_trace(go.Bar(
         x=chart_df["eal"], y=chart_df["asset_name"], orientation="h",
         marker_color=[SEVERITY_COLORS.get(t, "#64748b") for t in chart_df["risk_level"]],
         error_x=dict(type="data", array=chart_df["var_95"] - chart_df["eal"], visible=True, color="#94a3b8"),
-        text=[f"${v:,.0f}" for v in chart_df["eal"]], textposition="outside",
-        hovertemplate="<b>%{y}</b><br>EAL: $%{x:,.0f}<extra></extra>",
+        text=[format_money(v) for v in chart_df["eal"]], textposition="outside",
+        hovertemplate=f"<b>%{{y}}</b><br>EAL: {currency_symbol}%{{x:,.0f}}<extra></extra>",
     ))
     fig_bar.update_layout(
-        xaxis_title="Expected Annual Loss (USD) — error bar shows 95% VaR",
+        xaxis_title=f"Expected Annual Loss ({selected_currency.split(' ')[-1].strip('()')}) — error bar shows 95% VaR",
         height=max(320, 46 * len(chart_df)), margin=dict(l=10, r=60, t=10, b=40),
     )
     st.plotly_chart(fig_bar, width="stretch")
@@ -1459,15 +1610,15 @@ fig_tornado = go.Figure()
 fig_tornado.add_trace(go.Bar(
     y=sens_df["driver"], x=sens_df["high"] - sens_df["base"], base=sens_df["base"],
     orientation="h", marker_color="#ef4444", name="+20%",
-    hovertemplate="%{y}<br>EAL: $%{x:,.0f}<extra></extra>",
+    hovertemplate=f"%{{y}}<br>EAL: {currency_symbol}%{{x:,.0f}}<extra></extra>",
 ))
 fig_tornado.add_trace(go.Bar(
     y=sens_df["driver"], x=sens_df["low"] - sens_df["base"], base=sens_df["base"],
     orientation="h", marker_color="#3b82f6", name="-20%",
-    hovertemplate="%{y}<br>EAL: $%{x:,.0f}<extra></extra>",
+    hovertemplate=f"%{{y}}<br>EAL: {currency_symbol}%{{x:,.0f}}<extra></extra>",
 ))
 fig_tornado.update_layout(
-    barmode="overlay", xaxis_title="Portfolio EAL (USD)", height=260,
+    barmode="overlay", xaxis_title=f"Portfolio EAL ({selected_currency.split(' ')[-1].strip('()')})", height=260,
     margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", y=1.15),
 )
 st.plotly_chart(fig_tornado, width="stretch")
@@ -1491,22 +1642,24 @@ display_cols = [
     "std_dev",
     "contribution_pct",
 ]
-result_table = filtered_df[display_cols].rename(columns={
+result_table = filtered_df[display_cols].copy()
+result_table[["eal", "var_90", "var_95", "var_99", "std_dev"]] *= currency_rate
+result_table = result_table.rename(columns={
     "asset_name": "Asset", "risk_level": "Risk Level", "vulnerability": "Vulnerability / CVE",
     "vuln_prob": "Vulnerability Probability", "mean_lef": "Mean Loss Events/Yr",
-    "eal": "EAL ($)", "var_90": "90% VaR ($)", "var_95": "95% VaR ($)", "var_99": "99% VaR ($)",
-    "std_dev": "Std Dev ($)", "contribution_pct": "% of Portfolio EAL",
-}).sort_values("EAL ($)", ascending=False)
+    "eal": currency_label("EAL"), "var_90": currency_label("90% VaR"), "var_95": currency_label("95% VaR"), "var_99": currency_label("99% VaR"),
+    "std_dev": currency_label("Std Dev"), "contribution_pct": "% of Portfolio EAL",
+}).sort_values(currency_label("EAL"), ascending=False)
 st.dataframe(
     result_table, width="stretch", hide_index=True,
     column_config={
         "Vulnerability Probability": st.column_config.NumberColumn(format="%.1f%%"),
         "Mean Loss Events/Yr": st.column_config.NumberColumn(format="%.2f"),
-        "EAL ($)": st.column_config.NumberColumn(format="$%,.0f"),
-        "90% VaR ($)": st.column_config.NumberColumn(format="$%,.0f"),
-        "95% VaR ($)": st.column_config.NumberColumn(format="$%,.0f"),
-        "99% VaR ($)": st.column_config.NumberColumn(format="$%,.0f"),
-        "Std Dev ($)": st.column_config.NumberColumn(format="$%,.0f"),
+        currency_label("EAL"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+        currency_label("90% VaR"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+        currency_label("95% VaR"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+        currency_label("99% VaR"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+        currency_label("Std Dev"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
         "% of Portfolio EAL": st.column_config.NumberColumn(format="%.1f%%"),
     },
 )
@@ -1514,8 +1667,11 @@ st.dataframe(
 st.divider()
 
 # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # 10b. Investment Optimizer — Δ-EAL per control + knapsack budget solver
 # ------------------------------------------------------------------------------
+st = _SectionUI(optimization_tab, streamlit_api)
+st.markdown('<div id="investment-optimization"></div>', unsafe_allow_html=True)
 st.header("💰 Investment Optimizer")
 st.caption(
     "Estimate the Expected Annual Loss reduction (Δ-EAL) each candidate control would "
@@ -1543,8 +1699,10 @@ if st.button("🤖 Suggest controls for all assets", disabled=groq_client is Non
 if groq_client is None:
     st.caption(f"AI control suggestions unavailable — {groq_error}")
 
+controls_display_df = st.session_state.controls_df.copy()
+controls_display_df["cost"] *= currency_rate
 controls_edited_df = st.data_editor(
-    st.session_state.controls_df,
+    controls_display_df,
     width="stretch",
     num_rows="dynamic",
     hide_index=True,
@@ -1553,7 +1711,7 @@ controls_edited_df = st.data_editor(
         "control_id": None,
         "asset_name": st.column_config.SelectboxColumn("Asset", options=asset_name_options),
         "control_name": st.column_config.TextColumn("Control"),
-        "cost": st.column_config.NumberColumn("Cost ($)", format="$%,.0f", min_value=0),
+        "cost": st.column_config.NumberColumn(currency_label("Cost"), format=f"{currency_symbol}%,.0f", min_value=0),
         "vuln_prob_reduction_pct": st.column_config.NumberColumn(
             "Vuln reduction", format="%.0f%%", min_value=0.0, max_value=0.9, step=0.05
         ),
@@ -1565,14 +1723,17 @@ controls_edited_df = st.data_editor(
         ),
     },
 )
+controls_edited_df["cost"] /= currency_rate
 controls_df_valid = _coerce_controls(controls_edited_df, asset_name_options)
 if not controls_df_valid.equals(st.session_state.controls_df):
     st.session_state.controls_df = controls_df_valid
     _save_control_library(controls_df_valid)
 
-budget = st.number_input(
-    "Total security budget ($)", min_value=0, value=250000, step=10000, format="%d"
+budget_display = st.number_input(
+    currency_label("Total security budget"), min_value=0, value=int(250000 * currency_rate),
+    step=max(1, int(10000 * currency_rate)), format="%d"
 )
+budget = budget_display / currency_rate
 
 if controls_df_valid.empty:
     st.info("Add or generate at least one candidate control above to run the optimizer.")
@@ -1622,8 +1783,8 @@ else:
         total_delta = sum(c["delta_eal"] for c in selected)
 
         oc1, oc2, oc3 = st.columns(3)
-        oc1.metric("Recommended spend", f"${total_cost:,.0f}", f"of ${budget:,.0f} budget")
-        oc2.metric("Projected EAL reduction", f"${total_delta:,.0f}")
+        oc1.metric("Recommended spend", format_money(total_cost), f"of {format_money(budget)} budget")
+        oc2.metric("Projected EAL reduction", format_money(total_delta))
         oc3.metric("Controls selected", f"{len(selected)} / {len(roi_ranked)}")
 
         st.markdown("#### Portfolio EAL — before vs after recommended controls")
@@ -1637,32 +1798,32 @@ else:
             x=["Current (unmitigated)", "Optimized (with recommended controls)"],
             y=[portfolio_summary["eal"], optimized_eal_full],
             marker_color=["#ef4444", "#22c55e"],
-            text=[f"${portfolio_summary['eal']:,.0f}", f"${optimized_eal_full:,.0f}"],
+            text=[format_money(portfolio_summary["eal"]), format_money(optimized_eal_full)],
             textposition="outside",
-            hovertemplate="%{x}<br>Portfolio EAL: $%{y:,.0f}<extra></extra>",
+            hovertemplate=f"%{{x}}<br>Portfolio EAL: {currency_symbol}%{{y:,.0f}}<extra></extra>",
         ))
         fig_compare.update_layout(
-            yaxis_title="Portfolio EAL (USD)",
+            yaxis_title=currency_label("Portfolio EAL"),
             height=340, margin=dict(l=10, r=10, t=10, b=10), showlegend=False,
         )
         st.plotly_chart(fig_compare, width="stretch")
         st.caption(
-            f"Recommended controls cut portfolio EAL by ${portfolio_summary['eal'] - optimized_eal_full:,.0f} "
-            f"({pct_reduction:.1f}%) for a spend of ${total_cost:,.0f}."
+            f"Recommended controls cut portfolio EAL by {format_money(portfolio_summary['eal'] - optimized_eal_full)} "
+            f"({pct_reduction:.1f}%) for a spend of {format_money(total_cost)}."
         )
 
         fig_controls = go.Figure()
         fig_controls.add_trace(go.Bar(
-            x=[c["delta_eal"] for c in roi_ranked],
+            x=[c["delta_eal"] * currency_rate for c in roi_ranked],
             y=[c["label"] for c in roi_ranked],
             orientation="h",
             marker_color=["#22c55e" if c in selected else "#94a3b8" for c in roi_ranked],
-            text=[f"${c['delta_eal']:,.0f}" for c in roi_ranked],
+            text=[format_money(c["delta_eal"]) for c in roi_ranked],
             textposition="outside",
-            hovertemplate="<b>%{y}</b><br>Δ-EAL: $%{x:,.0f}<extra></extra>",
+            hovertemplate=f"<b>%{{y}}</b><br>Δ-EAL: {currency_symbol}%{{x:,.0f}}<extra></extra>",
         ))
         fig_controls.update_layout(
-            xaxis_title="Δ-EAL (USD, green = selected within budget)",
+            xaxis_title=f"Δ-EAL ({selected_currency.split(' ')[-1].strip('()')}, green = selected within budget)",
             height=max(280, 40 * len(roi_ranked)),
             margin=dict(l=10, r=60, t=10, b=40),
         )
@@ -1670,44 +1831,52 @@ else:
 
         st.markdown("#### Recommended within budget")
         if selected:
+            selected_display = pd.DataFrame(selected)[["label", "asset_name", "cost", "delta_eal", "roi"]].copy()
+            selected_display[["cost", "delta_eal"]] *= currency_rate
+            selected_display["roi"] = selected_display["roi"]
             st.dataframe(
-                pd.DataFrame(selected)[["label", "asset_name", "cost", "delta_eal", "roi"]].rename(columns={
-                    "label": "Control", "asset_name": "Asset", "cost": "Cost ($)",
-                    "delta_eal": "Δ-EAL ($)", "roi": "ROI ($ saved / $ spent)",
+                selected_display.rename(columns={
+                    "label": "Control", "asset_name": "Asset", "cost": currency_label("Cost"),
+                    "delta_eal": currency_label("Δ-EAL"), "roi": f"ROI ({currency_symbol} saved / {currency_symbol} spent)",
                 }),
                 width="stretch", hide_index=True,
                 column_config={
-                    "Cost ($)": st.column_config.NumberColumn(format="$%,.0f"),
-                    "Δ-EAL ($)": st.column_config.NumberColumn(format="$%,.0f"),
-                    "ROI ($ saved / $ spent)": st.column_config.NumberColumn(format="%.2f"),
+                    currency_label("Cost"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+                    currency_label("Δ-EAL"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+                    f"ROI ({currency_symbol} saved / {currency_symbol} spent)": st.column_config.NumberColumn(format="%.2f"),
                 },
             )
         else:
             st.caption("No controls fit within the current budget.")
 
         with st.expander("Full ROI ranking (all candidates)"):
+            roi_display = pd.DataFrame(roi_ranked)[["label", "asset_name", "cost", "delta_eal", "roi"]].copy()
+            roi_display[["cost", "delta_eal"]] *= currency_rate
             st.dataframe(
-                pd.DataFrame(roi_ranked)[["label", "asset_name", "cost", "delta_eal", "roi"]].rename(columns={
-                    "label": "Control", "asset_name": "Asset", "cost": "Cost ($)",
-                    "delta_eal": "Δ-EAL ($)", "roi": "ROI ($ saved / $ spent)",
+                roi_display.rename(columns={
+                    "label": "Control", "asset_name": "Asset", "cost": currency_label("Cost"),
+                    "delta_eal": currency_label("Δ-EAL"), "roi": f"ROI ({currency_symbol} saved / {currency_symbol} spent)",
                 }),
                 width="stretch", hide_index=True,
                 column_config={
-                    "Cost ($)": st.column_config.NumberColumn(format="$%,.0f"),
-                    "Δ-EAL ($)": st.column_config.NumberColumn(format="$%,.0f"),
-                    "ROI ($ saved / $ spent)": st.column_config.NumberColumn(format="%.2f"),
+                    currency_label("Cost"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+                    currency_label("Δ-EAL"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+                    f"ROI ({currency_symbol} saved / {currency_symbol} spent)": st.column_config.NumberColumn(format="%.2f"),
                 },
             )
-
-st.divider()
 
 # ------------------------------------------------------------------------------
 # 11. Cyber Risk Analyst Assistant
 # ------------------------------------------------------------------------------
-st.subheader("🤖 Cyber Risk Analyst Assistant")
+# Use Streamlit's root API while inside chat-message contexts so each message
+# stays in the persistent sidebar rather than being routed into a workflow tab.
+st = streamlit_api
+assistant_panel = assistant_slot.container()
+assistant_panel.subheader("🤖 Risk Analyst")
+assistant_panel.caption("Ask about this portfolio, generate assets, or explore mitigations.")
 
 if groq_client is None:
-    st.info(f"AI assistant unavailable — {groq_error}")
+    assistant_panel.info(f"AI assistant unavailable — {groq_error}")
 else:
     if "messages" not in st.session_state:
         st.session_state.messages = [
@@ -1717,12 +1886,12 @@ else:
         st.session_state.ai_generated_csv = None
 
     for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
+        with assistant_panel.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    if question := st.chat_input("Ask a question or request a new asset CSV..."):
+    if question := assistant_panel.chat_input("Ask about risk or generate assets..."):
         st.session_state.messages.append({"role": "user", "content": question})
-        with st.chat_message("user"):
+        with assistant_panel.chat_message("user"):
             st.write(question)
 
         analytics_context = {
@@ -1746,7 +1915,7 @@ Your goal is to assist the user based on their request:
    - Generate realistic FAIR-model parameters for each new asset mentioned.
    - Output MUST contain valid CSV data inside a single markdown code block (`csv ... `).
    - Use these exact header columns:
-     asset_name,threat_event,vulnerability,risk_level,tef_min,tef_mode,tef_max,vuln_prob,loss_min,loss_mode,loss_max
+     asset_name,threat_event,vulnerability 
 
 2. IF THE USER ASKS TO REMOVE, DELETE, OR RETIRE ONE OR MORE EXISTING ASSETS (e.g. "remove Customer Portal", "we decommissioned the legacy file server"):
    - Take the CURRENT REGISTER provided below.
@@ -1766,7 +1935,7 @@ SIMULATION OUTPUT (JSON):
 
 USER REQUEST: {question}"""
 
-        with st.chat_message("assistant"):
+        with assistant_panel.chat_message("assistant"):
             with st.spinner("Processing request..."):
                 answer = None
                 max_retries = 3
@@ -1808,10 +1977,10 @@ USER REQUEST: {question}"""
                             if column not in ai_assets_df.columns
                         ]
                         
-                        st.markdown("---")
-                        st.subheader("🤖 AI-Generated Assets")
+                        assistant_panel.markdown("---")
+                        assistant_panel.subheader("🤖 AI-Generated Assets")
                         
-                        col_ai1, col_ai2 = st.columns(2)
+                        col_ai1, col_ai2 = assistant_panel.columns(2)
                         
                         with col_ai1:
                             if st.button("⚡ Load AI Assets into Dashboard"):
@@ -1839,7 +2008,7 @@ USER REQUEST: {question}"""
                             )
 
     if st.session_state.ai_generated_csv:
-        st.download_button(
+        assistant_panel.download_button(
             label="📥 Download Latest AI Assets (CSV)",
             data=st.session_state.ai_generated_csv,
             file_name=f"ai_generated_assets_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
@@ -1848,19 +2017,25 @@ USER REQUEST: {question}"""
         )
 
 
+
+
 # Add CSV download section in AI area
+st = _SectionUI(eal_tab, streamlit_api)
 st.markdown("---")
-st.subheader("📥 Export Results")
+st.subheader("📥 Reporting & Export")
+st.caption("Export the current EAL and portfolio summary for stakeholders.")
 
 col1, col2 = st.columns(2)
 
 with col1:
     # Download current simulation results
-    results_df = filtered_df[display_cols].rename(columns={
+    results_df = filtered_df[display_cols].copy()
+    results_df[["eal", "var_90", "var_95", "var_99", "std_dev"]] *= currency_rate
+    results_df = results_df.rename(columns={
         "asset_name": "Asset", "risk_level": "Risk Level", "vulnerability": "Vulnerability / CVE",
         "vuln_prob": "Vulnerability Probability", "mean_lef": "Mean Loss Events/Yr",
-        "eal": "EAL ($)", "var_90": "90% VaR ($)", "var_95": "95% VaR ($)", "var_99": "99% VaR ($)",
-        "std_dev": "Std Dev ($)", "contribution_pct": "% of Portfolio EAL",
+        "eal": currency_label("EAL"), "var_90": currency_label("90% VaR"), "var_95": currency_label("95% VaR"), "var_99": currency_label("99% VaR"),
+        "std_dev": currency_label("Std Dev"), "contribution_pct": "% of Portfolio EAL",
     })
     results_excel = io.BytesIO()
     results_df.to_excel(results_excel, index=False)
@@ -1876,17 +2051,17 @@ with col1:
 with col2:
     # Download portfolio summary as Excel
     summary_single = pd.DataFrame([{
-        "Metric": "Portfolio EAL ($)",
-        "Value": f"${portfolio_summary['eal']:,.0f}"
+        "Metric": currency_label("Portfolio EAL"),
+        "Value": format_money(portfolio_summary["eal"])
     }, {
-        "Metric": "90% VaR ($)",
-        "Value": f"${portfolio_summary['var_90']:,.0f}"
+        "Metric": currency_label("90% VaR"),
+        "Value": format_money(portfolio_summary["var_90"])
     }, {
-        "Metric": "95% VaR ($)",
-        "Value": f"${portfolio_summary['var_95']:,.0f}"
+        "Metric": currency_label("95% VaR"),
+        "Value": format_money(portfolio_summary["var_95"])
     }, {
-        "Metric": "99% VaR ($)",
-        "Value": f"${portfolio_summary['var_99']:,.0f}"
+        "Metric": currency_label("99% VaR"),
+        "Value": format_money(portfolio_summary["var_99"])
     }])
     
     summary_excel = io.BytesIO()
@@ -1914,7 +2089,9 @@ with col2:
 # ==============================================================================
 import sqlite3
 
+st = _SectionUI(monitoring_tab, streamlit_api)
 st.divider()
+st.markdown('<div id="live-monitoring"></div>', unsafe_allow_html=True)
 st.header("🗄️ Live Continuous Risk Monitor (Database-Backed)")
 st.caption(
     "Reads directly from db/risk_platform.db — reflects the FAIR/Monte Carlo "
@@ -1988,21 +2165,23 @@ else:
 
     lk1, lk2, lk3, lk4 = st.columns(4)
     lk1.metric("Live Monitored Assets", len(live_assets_df))
-    lk2.metric("Live Portfolio EAL", f"${live_total_eal:,.0f}")
-    lk3.metric("Live Portfolio 95% VaR", f"${live_total_var95:,.0f}")
+    lk2.metric(currency_label("Live Portfolio EAL"), format_money(live_total_eal))
+    lk3.metric(currency_label("Live Portfolio 95% VaR"), format_money(live_total_var95))
     lk4.metric("Last Recalculated", str(last_updated)[:19] if last_updated != "N/A" else "N/A")
 
     st.markdown("#### Live Asset Risk Table")
+    live_assets_display = live_assets_df.copy()
+    live_assets_display[["eal", "var_95"]] *= currency_rate
     st.dataframe(
-        live_assets_df.rename(columns={
+        live_assets_display.rename(columns={
             "asset_id": "ID", "asset_name": "Asset", "tech_keyword": "Tech Keyword",
-            "criticality": "Criticality", "eal": "EAL ($)", "var_95": "95% VaR ($)",
+            "criticality": "Criticality", "eal": currency_label("EAL"), "var_95": currency_label("95% VaR"),
             "risk_level": "Risk Level",
         }),
         width="stretch", hide_index=True,
         column_config={
-            "EAL ($)": st.column_config.NumberColumn(format="$%,.0f"),
-            "95% VaR ($)": st.column_config.NumberColumn(format="$%,.0f"),
+            currency_label("EAL"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
+            currency_label("95% VaR"): st.column_config.NumberColumn(format=f"{currency_symbol}%,.0f"),
         },
     )
 
@@ -2113,7 +2292,13 @@ def register_github_webhook(repo_url, webhook_url, token):
         return False, str(e)
 
 
+    except Exception as e:
+        return False, str(e)
+
+
+st = _SectionUI(integrations_tab, streamlit_api)
 st.divider()
+st.markdown('<div id="integrations"></div>', unsafe_allow_html=True)
 st.header("🔗 Connect a GitHub Repository")
 st.caption(
     "Registers a webhook on your repo so every push automatically triggers "
@@ -2213,6 +2398,13 @@ def _save_monitoring_mode(mode):
     MONITORING_CONFIG_PATH.write_text(json.dumps({"mode": mode}, indent=2))
 
 
+st.divider()
+st.header("⚙️ Continuous Monitoring Mode")
+def _save_monitoring_mode(mode):
+    MONITORING_CONFIG_PATH.write_text(json.dumps({"mode": mode}, indent=2))
+
+
+st = _SectionUI(monitoring_tab, streamlit_api)
 st.divider()
 st.header("⚙️ Continuous Monitoring Mode")
 st.caption(
