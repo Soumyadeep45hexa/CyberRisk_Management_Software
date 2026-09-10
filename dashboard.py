@@ -39,7 +39,10 @@ st.set_page_config(
 )
 st.markdown("""
 <style>
-    [data-testid="stSidebar"] { min-width: 390px; max-width: 390px; }
+    /* Keep Streamlit's native drag-resize behavior.  The main workspace uses
+       the remaining width automatically as the analyst changes the sidebar. */
+    [data-testid="stSidebar"] { min-width: 0; max-width: none; }
+    [data-testid="stMain"] { min-width: 0; }
     [data-testid="stSidebar"] [data-testid="stChatMessage"] { padding: .35rem 0; }
     .workflow-card {
         border: 1px solid rgba(148, 163, 184, .35); border-radius: 12px;
@@ -80,10 +83,6 @@ assistant_slot = st.sidebar.empty()
 st.sidebar.caption("🔧 Build: investment-optimizer-v3")
 
 st.markdown("### Workspace")
-nav_overview, nav_assets, nav_eal, nav_optimise, nav_monitor, nav_integrate = st.tabs([
-    "Overview", "Asset Upload", "EAL Calculation", "Optimization",
-    "Live Monitoring", "Integrations",
-])
 st.caption("Select a workspace to view only its controls, analysis, and results.")
 asset_tab, eal_tab, optimization_tab, monitoring_tab, integrations_tab = st.tabs([
     "📁 Asset Upload",
@@ -92,18 +91,6 @@ asset_tab, eal_tab, optimization_tab, monitoring_tab, integrations_tab = st.tabs
     "🗄️ Live Monitoring",
     "🔗 Integrations",
 ])
-with nav_overview:
-    st.markdown("Use this command center to quantify portfolio exposure, identify risk drivers, and prioritize the controls that reduce loss most efficiently.")
-with nav_assets:
-    st.markdown("[Go to asset intake and the editable risk register](#asset-upload)")
-with nav_eal:
-    st.markdown("[Go to FAIR simulation, EAL, VaR, trends, and risk drivers](#eal-calculation)")
-with nav_optimise:
-    st.markdown("[Go to security-control investment optimization](#investment-optimization)")
-with nav_monitor:
-    st.markdown("[Go to the database-backed continuous risk monitor](#live-monitoring)")
-with nav_integrate:
-    st.markdown("[Go to GitHub webhook and monitoring integrations](#integrations)")
 
 SEVERITY_COLORS = {
     "Critical": "#b91c1c",
@@ -732,6 +719,15 @@ def _sample_register():
     ])
 
 
+def _asset_identity(asset_name) -> str:
+    """A comparison key for an asset name, tolerant of case and punctuation.
+
+    For example, ``Customer Portal``, ``customer-portal``, and
+    ``CUSTOMER_PORTAL`` identify the same asset for register purposes.
+    """
+    return re.sub(r"[^a-z0-9]+", "", str(asset_name).casefold())
+
+
 def _coerce_register(df: pd.DataFrame):
     problems = []
 
@@ -765,6 +761,15 @@ def _coerce_register(df: pd.DataFrame):
             f"{int(bad_rows.sum())} row(s) had missing values and were dropped."
         )
         df = df[~bad_rows]
+
+    # A register represents unique assets.  Preserve the first occurrence so
+    # duplicate rows from a CSV, the editor, or an AI response never create a
+    # second Monte Carlo exposure for the same real-world asset.
+    if not df.empty:
+        asset_keys = df["asset_name"].map(_asset_identity)
+        duplicate_rows = asset_keys.duplicated(keep="first")
+        if duplicate_rows.any():
+            df = df.loc[~duplicate_rows].copy()
 
     # --- Dependency layer: optional columns, default-filled so any register
     # (old saves, fresh uploads, Quick Add) works without them. ---
@@ -1073,6 +1078,42 @@ def confirm_delete_asset(asset_name):
 # ------------------------------------------------------------------------------
 # Streamlit UI Controls
 # ------------------------------------------------------------------------------
+class _SectionContainer:
+    """A tab child that preserves nested Streamlit layout contexts.
+
+    Without this wrapper, a widget invoked inside ``with st.expander(...)``
+    would be sent straight back to the parent tab by _SectionUI.  That made
+    Quick Add's controls appear below the collapsed dropdown.
+    """
+
+    def __init__(self, section_ui, container):
+        self._section_ui = section_ui
+        self._container = container
+
+    def __enter__(self):
+        entered = self._container.__enter__()
+        self._section_ui._push_container(
+            entered if entered is not None else self._container
+        )
+        return self
+
+    def __exit__(self, *args):
+        try:
+            return self._container.__exit__(*args)
+        finally:
+            self._section_ui._pop_container()
+
+    def __getattr__(self, name):
+        member = getattr(self._container, name)
+        if not callable(member):
+            return member
+
+        def routed_call(*args, **kwargs):
+            return self._section_ui._wrap_result(member(*args, **kwargs))
+
+        return routed_call
+
+
 class _SectionUI:
     """Routes visual calls into one workflow tab while retaining Streamlit's
     state, cache, configuration, and column-config APIs.
@@ -1084,11 +1125,31 @@ class _SectionUI:
     def __init__(self, container, streamlit_api):
         self._container = container
         self._streamlit = streamlit_api
+        self._container_stack = []
 
     @property
     def sidebar(self):
         # Legacy sidebar controls are now shown in the active workflow tab.
         return self
+
+    @property
+    def _active_container(self):
+        return self._container_stack[-1] if self._container_stack else self._container
+
+    def _push_container(self, container):
+        self._container_stack.append(container)
+
+    def _pop_container(self):
+        if self._container_stack:
+            self._container_stack.pop()
+
+    def _wrap_result(self, result):
+        if isinstance(result, (list, tuple)):
+            wrapped = [self._wrap_result(item) for item in result]
+            return type(result)(wrapped)
+        if hasattr(result, "__enter__") and hasattr(result, "__exit__") and hasattr(result, "container"):
+            return _SectionContainer(self, result)
+        return result
 
     def __getattr__(self, name):
         if name in {
@@ -1100,8 +1161,13 @@ class _SectionUI:
             "form_submit_button",
         }:
             return getattr(self._streamlit, name)
-        if hasattr(self._container, name):
-            return getattr(self._container, name)
+        if hasattr(self._active_container, name):
+            member = getattr(self._active_container, name)
+            if callable(member):
+                def routed_call(*args, **kwargs):
+                    return self._wrap_result(member(*args, **kwargs))
+                return routed_call
+            return member
         return getattr(self._streamlit, name)
 
 
@@ -1165,9 +1231,43 @@ with st.sidebar.expander("➕ Quick Add", expanded=True):
                 inferred_context = _infer_asset_context_with_llm(quick_raw_df)
                 quick_enriched_df = enrich_with_nvd_dynamic_loss(inferred_context)
                 quick_register_df, quick_problems = _coerce_register(quick_enriched_df)
+
+            # Keep the duplicate comparison safe even if enrichment returned
+            # no valid rows; the existing error message below handles that.
             if quick_problems or quick_register_df.empty:
-                st.error(" / ".join(quick_problems) or "Could not add these assets.")
+                quick_register_df = pd.DataFrame({"asset_name": []})
+
+            # Quick Add merges into the saved register.  Remove any incoming
+            # row whose normalized name is already present, rather than
+            # replacing the existing asset or adding a duplicate row.
+            current_register = st.session_state.processed_df
+            existing_asset_keys = set(
+                current_register["asset_name"].map(_asset_identity)
+            )
+            incoming_asset_keys = quick_register_df["asset_name"].map(_asset_identity)
+            already_registered = incoming_asset_keys.isin(existing_asset_keys)
+            skipped_asset_names = quick_register_df.loc[
+                already_registered, "asset_name"
+            ].tolist()
+            quick_register_df = quick_register_df.loc[
+                ~already_registered
+            ].reset_index(drop=True)
+
+            if quick_problems or quick_register_df.empty:
+                if quick_problems:
+                    st.error(" / ".join(quick_problems))
+                else:
+                    skipped_label = ", ".join(map(str, skipped_asset_names))
+                    st.info(
+                        "No new assets were added. The uploaded asset(s) are "
+                        f"already in the register: {skipped_label}"
+                    )
             else:
+                if skipped_asset_names:
+                    st.info(
+                        "Skipped already-registered asset(s): "
+                        + ", ".join(map(str, skipped_asset_names))
+                    )
                 existing_names = st.session_state.processed_df["asset_name"].tolist()
                 new_names = quick_register_df["asset_name"].tolist()
                 with st.spinner("Checking for architectural dependencies..."):
