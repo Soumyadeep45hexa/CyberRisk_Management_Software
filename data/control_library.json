@@ -1,335 +1,371 @@
 [
   {
     "control_id":"ctrl_llm_0",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Mutual TLS with certificate pinning",
-    "cost":120000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.4,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_1",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Multi\u2011Factor Authentication for API access",
-    "cost":80000.0,
-    "vuln_prob_reduction_pct":0.5,
+    "asset_name":"Cisco ASA 5506-X",
+    "control_name":"Multi-Factor Authentication for ASA admin accounts",
+    "cost":5000.0,
+    "vuln_prob_reduction_pct":0.4,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
   },
   {
+    "control_id":"ctrl_llm_1",
+    "asset_name":"Cisco ASA 5506-X",
+    "control_name":"Zone\u2011based firewall segmentation with strict ACLs",
+    "cost":2500.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.3,
+    "loss_reduction_pct":0.0
+  },
+  {
     "control_id":"ctrl_llm_2",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Automated API key rotation stored in secret manager",
-    "cost":50000.0,
+    "asset_name":"Cisco ASA 5506-X",
+    "control_name":"Automated encrypted configuration backup to offsite storage",
+    "cost":2000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.25
+  },
+  {
+    "control_id":"ctrl_llm_3",
+    "asset_name":"Cisco Catalyst 9200",
+    "control_name":"802.1X port\u2011based authentication for all switch ports",
+    "cost":3000.0,
+    "vuln_prob_reduction_pct":0.35,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_4",
+    "asset_name":"Cisco Catalyst 9200",
+    "control_name":"Private VLANs and VLAN ACL isolation",
+    "cost":2600.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.28,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_5",
+    "asset_name":"Cisco Catalyst 9200",
+    "control_name":"Versioned configuration backups with secure offsite archive",
+    "cost":2100.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.22
+  },
+  {
+    "control_id":"ctrl_llm_6",
+    "asset_name":"Cisco ASR-1001-X",
+    "control_name":"Automated IOS\u2011XE patch management",
+    "cost":4000.0,
+    "vuln_prob_reduction_pct":0.45,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_7",
+    "asset_name":"Cisco ASR-1001-X",
+    "control_name":"BGP route\u2011flap damping and DDoS mitigation service",
+    "cost":10000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.25,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_8",
+    "asset_name":"Cisco ASR-1001-X",
+    "control_name":"Redundant routing hardware with failover configuration",
+    "cost":15000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.3
   },
   {
-    "control_id":"ctrl_llm_3",
-    "asset_name":"Employee Workstations",
-    "control_name":"Centralized patch\u2011management automation",
-    "cost":70000.0,
+    "control_id":"ctrl_llm_9",
+    "asset_name":"Palo Alto Networks PA-3220",
+    "control_name":"Strong admin passwords and MFA for Panorama\/Firewall access",
+    "cost":5000.0,
+    "vuln_prob_reduction_pct":0.38,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_10",
+    "asset_name":"Palo Alto Networks PA-3220",
+    "control_name":"Least\u2011privilege security policy review and hardening",
+    "cost":8000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.32,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_11",
+    "asset_name":"Palo Alto Networks PA-3220",
+    "control_name":"Immutable log archive on tamper\u2011proof storage",
+    "cost":6000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.27
+  },
+  {
+    "control_id":"ctrl_llm_12",
+    "asset_name":"Fortinet FortiGate-300E",
+    "control_name":"Automated FortiOS patching via FortiGuard",
+    "cost":4200.0,
+    "vuln_prob_reduction_pct":0.42,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_13",
+    "asset_name":"Fortinet FortiGate-300E",
+    "control_name":"DoS protection profiles with traffic shaping",
+    "cost":3500.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.33,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_14",
+    "asset_name":"Fortinet FortiGate-300E",
+    "control_name":"Encrypted offline export of firewall configuration",
+    "cost":2400.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.24
+  },
+  {
+    "control_id":"ctrl_llm_15",
+    "asset_name":"Check Point Security Gateway 15000",
+    "control_name":"SmartConsole MFA for all administrative accounts",
+    "cost":5000.0,
+    "vuln_prob_reduction_pct":0.4,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_16",
+    "asset_name":"Check Point Security Gateway 15000",
+    "control_name":"Zone\u2011based segmentation with strict inter\u2011zone policies",
+    "cost":3000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.3,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_17",
+    "asset_name":"Check Point Security Gateway 15000",
+    "control_name":"Regular disaster\u2011recovery snapshots of gateway configuration",
+    "cost":5500.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.28
+  },
+  {
+    "control_id":"ctrl_llm_18",
+    "asset_name":"Juniper EX4300",
+    "control_name":"802.1X authentication on all switch ports",
+    "cost":3000.0,
+    "vuln_prob_reduction_pct":0.35,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_19",
+    "asset_name":"Juniper EX4300",
+    "control_name":"VLAN access control lists and private VLANs",
+    "cost":2600.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.27,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_20",
+    "asset_name":"Juniper EX4300",
+    "control_name":"Secure offsite backup of Junos configuration with versioning",
+    "cost":2300.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.23
+  },
+  {
+    "control_id":"ctrl_llm_0",
+    "asset_name":"Cisco ASA 5506-X",
+    "control_name":"Automated ASA\u2011OS patch management",
+    "cost":12000.0,
     "vuln_prob_reduction_pct":0.6,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
   },
   {
-    "control_id":"ctrl_llm_4",
-    "asset_name":"Employee Workstations",
-    "control_name":"Security awareness & phishing training",
-    "cost":30000.0,
+    "control_id":"ctrl_llm_1",
+    "asset_name":"Cisco ASA 5506-X",
+    "control_name":"DMZ network segmentation for the ASA",
+    "cost":25000.0,
     "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.35,
+    "tef_reduction_pct":0.4,
     "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_5",
-    "asset_name":"Employee Workstations",
-    "control_name":"Endpoint Detection and Response (EDR) solution",
-    "cost":150000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.5
   },
   {
     "control_id":"ctrl_llm_2",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Multi\u2011factor authentication for API admin accounts",
-    "cost":20000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.7,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_3",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Centralized secret vault with credential rotation",
-    "cost":15000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.5
-  },
-  {
-    "control_id":"ctrl_llm_4",
-    "asset_name":"Employee Workstations",
-    "control_name":"Endpoint Detection & Response (EDR) platform",
-    "cost":40000.0,
-    "vuln_prob_reduction_pct":0.5,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_5",
-    "asset_name":"Employee Workstations",
-    "control_name":"Quarterly security awareness and phishing simulation training",
+    "asset_name":"Cisco Catalyst 9200",
+    "control_name":"Automated Catalyst IOS\u2011XE firmware updates",
     "cost":10000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.4,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_3",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Centralized API secret management with automatic rotation",
-    "cost":20000.0,
-    "vuln_prob_reduction_pct":0.5,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_4",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Multi\u2011factor authentication for API developer access",
-    "cost":15000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.4,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_5",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Incident response playbook for API breach",
-    "cost":12000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.6
-  },
-  {
-    "control_id":"ctrl_llm_6",
-    "asset_name":"Employee Workstations",
-    "control_name":"Enterprise\u2011grade AV\/EDR deployment",
-    "cost":35000.0,
     "vuln_prob_reduction_pct":0.55,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
   },
   {
-    "control_id":"ctrl_llm_7",
-    "asset_name":"Employee Workstations",
-    "control_name":"Quarterly security awareness training",
-    "cost":8000.0,
+    "control_id":"ctrl_llm_3",
+    "asset_name":"Cisco Catalyst 9200",
+    "control_name":"VLAN ACL hardening and port isolation",
+    "cost":15000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.35,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_4",
+    "asset_name":"Cisco ASR-1001-X",
+    "control_name":"Automated IOS\u2011XE patching for ASR",
+    "cost":13000.0,
+    "vuln_prob_reduction_pct":0.6,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_5",
+    "asset_name":"Cisco ASR-1001-X",
+    "control_name":"CoPP rate\u2011limiting and DoS protection profile",
+    "cost":20000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.45,
     "loss_reduction_pct":0.0
   },
   {
-    "control_id":"ctrl_llm_8",
-    "asset_name":"Employee Workstations",
-    "control_name":"Full\u2011disk encryption with remote wipe capability",
-    "cost":15000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.5
-  },
-  {
-    "control_id":"ctrl_llm_0",
-    "asset_name":"Payment Gateway API",
-    "control_name":"MFA enforcement for API admin accounts",
-    "cost":12000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.6,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_1",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Secret management with automated credential rotation",
-    "cost":18000.0,
-    "vuln_prob_reduction_pct":0.5,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_2",
-    "asset_name":"Payment Gateway API",
-    "control_name":"TLS 1.3 encryption for API traffic",
-    "cost":8000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.4
-  },
-  {
-    "control_id":"ctrl_llm_3",
-    "asset_name":"Employee Workstations",
-    "control_name":"Enterprise EDR deployment",
-    "cost":30000.0,
-    "vuln_prob_reduction_pct":0.6,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_4",
-    "asset_name":"Employee Workstations",
-    "control_name":"Security awareness training program",
-    "cost":5000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.5,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_5",
-    "asset_name":"Employee Workstations",
-    "control_name":"Offline workstation backup solution",
-    "cost":20000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.5
-  },
-  {
-    "control_id":"ctrl_llm_0",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Enforce MFA for API access",
-    "cost":50000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.6,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_1",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Automated secret rotation via vault",
-    "cost":40000.0,
-    "vuln_prob_reduction_pct":0.5,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_2",
-    "asset_name":"Payment Gateway API",
-    "control_name":"WAF with custom API anomaly rules",
-    "cost":30000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.4
-  },
-  {
-    "control_id":"ctrl_llm_3",
-    "asset_name":"Employee Workstations",
-    "control_name":"Centralized patch management automation",
-    "cost":20000.0,
-    "vuln_prob_reduction_pct":0.7,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_4",
-    "asset_name":"Employee Workstations",
-    "control_name":"Security awareness training program",
-    "cost":15000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.5,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_5",
-    "asset_name":"Employee Workstations",
-    "control_name":"Endpoint Detection & Response (EDR) solution",
-    "cost":60000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.5
-  },
-  {
-    "control_id":"ctrl_llm_0",
-    "asset_name":"Core Database Server",
-    "control_name":"Automated critical patch management",
-    "cost":20000.0,
-    "vuln_prob_reduction_pct":0.6,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_1",
-    "asset_name":"Core Database Server",
-    "control_name":"Web Application Firewall (WAF) rules for SQL injection",
-    "cost":15000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.5,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_2",
-    "asset_name":"Core Database Server",
-    "control_name":"Database activity monitoring and encryption at rest",
-    "cost":25000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.4
-  },
-  {
-    "control_id":"ctrl_llm_3",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Strict OAuth token validation with scoped permissions",
-    "cost":30000.0,
-    "vuln_prob_reduction_pct":0.5,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_4",
-    "asset_name":"Payment Gateway API",
-    "control_name":"Multi\u2011factor authentication for API administrative access",
-    "cost":10000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.6,
-    "loss_reduction_pct":0.0
-  },
-  {
-    "control_id":"ctrl_llm_5",
-    "asset_name":"Payment Gateway API",
-    "control_name":"API gateway with rate limiting and detailed logging",
-    "cost":12000.0,
-    "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.3
-  },
-  {
     "control_id":"ctrl_llm_6",
-    "asset_name":"Employee Workstations",
-    "control_name":"Centralized endpoint detection & response (EDR)",
-    "cost":40000.0,
-    "vuln_prob_reduction_pct":0.7,
+    "asset_name":"Palo Alto Networks PA-3220",
+    "control_name":"Automated PAN\u2011OS version upgrades",
+    "cost":14000.0,
+    "vuln_prob_reduction_pct":0.6,
     "tef_reduction_pct":0.0,
     "loss_reduction_pct":0.0
   },
   {
     "control_id":"ctrl_llm_7",
-    "asset_name":"Employee Workstations",
-    "control_name":"Quarterly security awareness training",
-    "cost":5000.0,
+    "asset_name":"Palo Alto Networks PA-3220",
+    "control_name":"Quarterly firewall policy audit and hardening",
+    "cost":18000.0,
     "vuln_prob_reduction_pct":0.0,
-    "tef_reduction_pct":0.5,
+    "tef_reduction_pct":0.4,
     "loss_reduction_pct":0.0
   },
   {
     "control_id":"ctrl_llm_8",
-    "asset_name":"Employee Workstations",
-    "control_name":"Automated OS and software patching",
-    "cost":8000.0,
+    "asset_name":"Fortinet FortiGate-300E",
+    "control_name":"Automated FortiOS patch deployment",
+    "cost":11000.0,
+    "vuln_prob_reduction_pct":0.55,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_9",
+    "asset_name":"Fortinet FortiGate-300E",
+    "control_name":"Application control with sandboxing for unknown code",
+    "cost":22000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.4,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_10",
+    "asset_name":"Check Point Security Gateway 15000",
+    "control_name":"Gaia OS patch management automation",
+    "cost":11500.0,
+    "vuln_prob_reduction_pct":0.6,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_11",
+    "asset_name":"Check Point Security Gateway 15000",
+    "control_name":"Jump\u2011server with network segmentation for admin access",
+    "cost":25000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.35,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_12",
+    "asset_name":"Juniper EX4300",
+    "control_name":"Automated Junos OS patching",
+    "cost":9500.0,
+    "vuln_prob_reduction_pct":0.55,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_13",
+    "asset_name":"Juniper EX4300",
+    "control_name":"Port security and MAC\u2011address limiting",
+    "cost":12000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.3,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_14",
+    "asset_name":"Juniper MX480",
+    "control_name":"Software upgrade to remediate CVE\u20112019\u20111622",
+    "cost":13000.0,
+    "vuln_prob_reduction_pct":0.65,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_15",
+    "asset_name":"Juniper MX480",
+    "control_name":"RBAC\u2011based configuration change management with approval workflow",
+    "cost":20000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.4,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_16",
+    "asset_name":"Microsoft Windows Server 2022",
+    "control_name":"Automated Windows Update\/Intune patching",
+    "cost":15000.0,
+    "vuln_prob_reduction_pct":0.6,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_17",
+    "asset_name":"Microsoft Windows Server 2022",
+    "control_name":"Regular offline\/off\u2011site backups",
+    "cost":25000.0,
     "vuln_prob_reduction_pct":0.0,
     "tef_reduction_pct":0.0,
-    "loss_reduction_pct":0.2
+    "loss_reduction_pct":0.5
+  },
+  {
+    "control_id":"ctrl_llm_18",
+    "asset_name":"Microsoft Azure AD \/ Sentinel",
+    "control_name":"Enforced MFA for all privileged accounts",
+    "cost":18000.0,
+    "vuln_prob_reduction_pct":0.55,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.0
+  },
+  {
+    "control_id":"ctrl_llm_19",
+    "asset_name":"Microsoft Azure AD \/ Sentinel",
+    "control_name":"Privileged Access Management with Just\u2011In\u2011Time elevation",
+    "cost":22000.0,
+    "vuln_prob_reduction_pct":0.0,
+    "tef_reduction_pct":0.0,
+    "loss_reduction_pct":0.45
   }
 ]

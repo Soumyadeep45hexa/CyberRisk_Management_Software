@@ -6,6 +6,7 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - ./data:/app/data   # keeps generated JSON/db files visible on your host machine
+      - ./data:/app/data   # keeps generated JSON files visible on your host machine
+      - ./db:/app/db       # makes the live risk database available and persistent
     env_file:
       - .env               # loads GROQ_API_KEY etc. — create this file yourself, don't commit it
