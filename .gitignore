@@ -45,3 +45,8 @@ dashboard_dependencies.html
 
 
 *.exe
+.venv/
+.venv-win/
+__pycache__/
+*.py[cod]
+.env
